@@ -162,7 +162,7 @@ async fn get_questions(
     }
 }
 
-async fn add_question(store: Store, question: Question) -> Result<impl Reply, Rejection> {
+async fn add_question(question: Question, store: Store) -> Result<impl Reply, Rejection> {
     store
         .questions
         .write()
@@ -188,8 +188,8 @@ impl Reject for QuestionNotFound {}
 
 async fn update_question(
     id: String,
-    store: Store,
     question: Question,
+    store: Store,
 ) -> Result<impl Reply, Rejection> {
     match store.questions.write().await.get_mut(&QuestionId(id)) {
         Some(q) => {
@@ -264,16 +264,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let add_question = warp::post()
         .and(warp::path("questions"))
         .and(warp::path::end())
-        .and(store_filter.clone())
         .and(warp::body::json())
+        .and(store_filter.clone())
         .and_then(add_question);
 
     let update_question = warp::put()
         .and(warp::path("questions"))
         .and(warp::path::param::<String>())
         .and(warp::path::end())
-        .and(store_filter.clone())
         .and(warp::body::json())
+        .and(store_filter.clone())
         .and_then(update_question);
 
     let delete_question = warp::delete()
