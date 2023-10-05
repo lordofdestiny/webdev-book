@@ -162,6 +162,13 @@ async fn get_questions(
     }
 }
 
+async fn get_question(id: QuestionId, store: Store) -> Result<impl Reply, Rejection> {
+    match store.questions.read().await.get(&id) {
+        Some(q) => Ok(warp::reply::json(q)),
+        None => return Err(warp::reject::custom(QuestionNotFound)),
+    }
+}
+
 async fn add_question(question: Question, store: Store) -> Result<impl Reply, Rejection> {
     store
         .questions
@@ -187,11 +194,11 @@ impl std::fmt::Display for QuestionNotFound {
 impl Reject for QuestionNotFound {}
 
 async fn update_question(
-    id: String,
+    id: QuestionId,
     question: Question,
     store: Store,
 ) -> Result<impl Reply, Rejection> {
-    match store.questions.write().await.get_mut(&QuestionId(id)) {
+    match store.questions.write().await.get_mut(&id) {
         Some(q) => {
             *q = question;
             Ok(warp::reply::with_status("Question updated", StatusCode::OK))
@@ -200,8 +207,8 @@ async fn update_question(
     }
 }
 
-async fn delete_question(id: String, store: Store) -> Result<impl warp::Reply, warp::Rejection> {
-    match store.questions.write().await.remove(&QuestionId(id)) {
+async fn delete_question(id: QuestionId, store: Store) -> Result<impl Reply, Rejection> {
+    match store.questions.write().await.remove(&id) {
         Some(_) => Ok(warp::reply::with_status("Question deleted", StatusCode::OK)),
         None => return Err(warp::reject::custom(QuestionNotFound)),
     }
@@ -239,8 +246,6 @@ async fn return_error(rej: Rejection) -> Result<impl Reply, Rejection> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("{:?}", QuestionId::from_str("1").unwrap());
-
     let store = Store::new();
     let store_filter = warp::any().map(move || store.clone());
     let cors = warp::cors()
@@ -261,6 +266,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and(store_filter.clone())
         .and_then(get_questions);
 
+    let get_question = warp::get()
+        .and(warp::path("questions"))
+        .and(warp::path::param::<QuestionId>())
+        .and(warp::path::end())
+        .and(store_filter.clone())
+        .and_then(get_question);
+
     let add_question = warp::post()
         .and(warp::path("questions"))
         .and(warp::path::end())
@@ -270,7 +282,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let update_question = warp::put()
         .and(warp::path("questions"))
-        .and(warp::path::param::<String>())
+        .and(warp::path::param::<QuestionId>())
         .and(warp::path::end())
         .and(warp::body::json())
         .and(store_filter.clone())
@@ -278,12 +290,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let delete_question = warp::delete()
         .and(warp::path("questions"))
-        .and(warp::path::param::<String>())
+        .and(warp::path::param::<QuestionId>())
         .and(warp::path::end())
         .and(store_filter.clone())
         .and_then(delete_question);
 
     let routes = get_questions
+        .or(get_question)
         .or(add_question)
         .or(update_question)
         .or(delete_question)
