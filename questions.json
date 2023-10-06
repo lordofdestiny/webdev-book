@@ -1,8 +1,8 @@
 {
   "1": {
     "id": "1",
-  "title": "How?",
-  "content": "Please help!",
+    "title": "How?",
+    "content": "Please help!",
     "tags": [
       "general"
     ]
@@ -23,8 +23,8 @@
       "general"
     ]
   },
-  "4": {
-    "id": "4",
+  "0": {
+    "id": "0",
     "title": "How?",
     "content": "Please help!",
     "tags": [
