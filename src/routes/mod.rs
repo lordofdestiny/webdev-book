@@ -1,11 +1,8 @@
-use crate::store::Store;
-use warp::filters::BoxedFilter;
-use warp::{Filter, Reply};
+//! This module contains all the route filters for the application routes.
+//!
+//! Each submodule contains the filters for a specific resource.
 
+/// Roure filters for answers
 pub mod answers;
+/// Roure filters for questions
 pub mod questions;
-
-pub fn store_filter() -> BoxedFilter<(Store,)> {
-    let store = Store::new();
-    warp::any().map(move || store.clone()).boxed()
-}
