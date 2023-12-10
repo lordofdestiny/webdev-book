@@ -16,12 +16,12 @@ use warp::{http::StatusCode, Rejection, Reply};
 ///
 /// Returns `200 OK` on success \
 /// Returns `400 Bad Request` if the query parameters are invalid
-pub async fn get_questions(
+pub async fn get_all(
     params: HashMap<String, String>,
     store: Store,
 ) -> Result<impl Reply, Rejection> {
     // Extract the pagination parameters from the query
-    let Pagination { start, limit } = Pagination::extract(params)?;
+    let Pagination { start, limit } = Pagination::extract(&params)?;
     // Read the questions from the store
     let questions = store.questions.read().await;
     // Collect the questions into a vector

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::types::{Answer, AnswerId, Question, QuestionId};
+use crate::types::{Answer, Id, Question, QuestionId};
 
 /// This struct represents the store, which is a simple in-memory database.
 ///
@@ -17,7 +17,7 @@ pub struct Store {
     pub questions: Arc<RwLock<HashMap<QuestionId, Question>>>,
     /// This map contains all the answers. The key is the answer ID
     /// and the value is the answer.
-    pub answers: Arc<RwLock<HashMap<AnswerId, Answer>>>,
+    pub answers: Arc<RwLock<HashMap<Id, Answer>>>,
 }
 
 impl Store {

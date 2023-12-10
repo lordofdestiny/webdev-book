@@ -9,23 +9,23 @@ mod answer;
 mod pagination;
 mod question;
 
-pub use answer::{Answer, AnswerId};
+pub use answer::{Answer, Id};
 pub use pagination::Pagination;
 pub use question::{Question, QuestionId};
 
-/// NextId is a trait that allows us to generate a new id for each resource.
+/// `NextId` is a trait that allows us to generate a new id for each resource.
 ///
-/// NextId is thread-safe, as it uses an AtomicUsize to generate the next id.
+/// `NextId` is thread-safe, as it uses an `AtomicUsize` to generate the next id.
 ///
-/// To use NextId, you need to implement the FromStr trait, which allows us to
+/// To use `NextId`, you need to implement the `FromStr` trait, which allows us to
 /// convert a string to the type of the id.
 /// You also need to implement the counter() function, which returns a static
-/// AtomicUsize, which is used to generate the next id.
+/// `AtomicUsize`, which is used to generate the next id.
 pub trait NextId
 where
     Self: FromStr<Err = std::io::Error>,
 {
-    /// counter() returns a static AtomicUsize, which is used to generate the next id.
+    /// counter() returns a static `AtomicUsize`, which is used to generate the next id.
     /// The counter() function is implemented for each resource.
     fn counter() -> &'static AtomicUsize;
 

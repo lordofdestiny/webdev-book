@@ -1,10 +1,12 @@
-use crate::types::NextId;
-use serde::{Deserialize, Serialize};
 use std::{io::ErrorKind, str::FromStr, sync::atomic::AtomicUsize};
+
+use serde::{Deserialize, Serialize};
+
+use crate::types::NextId;
 
 /// Represents a question id.
 ///
-/// QuestionId is a wrapper around a String. It implements the NextId trait, which
+/// `QuestionId` is a wrapper around a String. It implements the `NextId` trait, which
 /// allows us to generate a new id for each question.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct QuestionId(String);
@@ -20,9 +22,10 @@ impl FromStr for QuestionId {
     type Err = std::io::Error;
 
     fn from_str(id: &str) -> Result<Self, Self::Err> {
-        match id.is_empty() {
-            false => Ok(QuestionId(id.to_string())),
-            true => Err(Self::Err::new(ErrorKind::InvalidInput, "No id provided")),
+        if id.is_empty() {
+            Err(Self::Err::new(ErrorKind::InvalidInput, "No id provided"))
+        } else {
+            Ok(QuestionId(id.to_string()))
         }
     }
 }

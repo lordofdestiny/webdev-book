@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+
 mod error;
 mod filters;
 mod handlers;
@@ -17,8 +19,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // It handles the CORS headers and the error handling.
     // It handles resources at the /questions and /answers endpoints.
     // The error handling is done by the return_error function defined in the error module.
-    let filter = filters::questions_filter(store.clone())
-        .or(filters::answers_filter(store.clone()))
+    let filter = filters::questions_filter(&store)
+        .or(filters::answers_filter(&store))
         .with(filters::cors())
         .recover(error::return_error);
 

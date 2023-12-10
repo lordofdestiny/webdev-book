@@ -42,13 +42,13 @@ pub fn store_filter(store: Store) -> BoxedFilter<(Store,)> {
 /// - `POST /questions -> add_question`
 /// - `PUT /questions/{id} -> update_question`
 /// - `DELETE /questions/{id} -> delete_question`
-pub fn questions_filter(store: Store) -> BoxedFilter<(impl Reply,)> {
+pub fn questions_filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
     use crate::handlers::questions as handlers;
     use crate::routes::questions as routes;
 
     routes::get_questions()
         .and(store_filter(store.clone()))
-        .and_then(handlers::get_questions)
+        .and_then(handlers::get_all)
         .or(routes::get_question()
             .and(store_filter(store.clone()))
             .and_then(handlers::get_question))
@@ -68,7 +68,7 @@ pub fn questions_filter(store: Store) -> BoxedFilter<(impl Reply,)> {
 ///
 /// The filter combines the following filters:
 /// - `POST /questions/{id}/answers -> get_answers`
-pub fn answers_filter(store: Store) -> BoxedFilter<(impl Reply,)> {
+pub fn answers_filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
     use crate::handlers::answers as handlers;
     use crate::routes::answers as routes;
 

@@ -20,19 +20,17 @@ impl Pagination {
     /// # Example query
     /// GET requests to this route can have a pagination attached so we just
     /// return the questions we need `/questions?start=0&limit=10`
-    pub fn extract(params: HashMap<String, String>) -> Result<Self, error::PaginationError> {
+    pub fn extract(params: &HashMap<String, String>) -> Result<Self, error::PaginationError> {
         // Extract the start and limit from the query params
         // If they are not provided we just return the default values
         // Default values are start = 0 and limit = usize::MAX
         let start = params
             .get("start")
-            .map(|s| s.parse())
-            .unwrap_or(Ok(0))
+            .map_or(Ok(0), |s| s.parse())
             .map_err(error::PaginationError)?;
         let limit = params
             .get("limit")
-            .map(|s| s.parse())
-            .unwrap_or(Ok(usize::MAX))
+            .map_or(Ok(usize::MAX), |s| s.parse())
             .map_err(error::PaginationError)?;
         Ok(Pagination { start, limit })
     }
