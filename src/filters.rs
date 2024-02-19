@@ -1,7 +1,8 @@
 //! This module contains the combined filters for the application resources.
 
-use crate::store::Store;
 use warp::{filters::BoxedFilter, http::Method, Filter, Reply};
+
+use crate::store::Store;
 
 /// This function returns the CORS filter for the application.
 ///

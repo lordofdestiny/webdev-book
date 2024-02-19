@@ -6,9 +6,10 @@ use warp::{filters::BoxedFilter, Filter};
 ///
 /// Handler arguments:
 /// 1. `HashMap<String, String>` - Extracted from the query string
-pub fn get_questions() -> BoxedFilter<(HashMap<String, String>,)> {
+pub fn get_questions() -> BoxedFilter<(String, HashMap<String, String>)> {
     warp::path!("questions")
         .and(warp::get())
+        .and(warp::any().map(|| uuid::Uuid::new_v4().to_string()))
         .and(warp::query::<HashMap<String, String>>())
         .boxed()
 }

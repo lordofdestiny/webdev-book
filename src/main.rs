@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::warn!("This is a warning!");
 
     let log = warp::log::custom(|info| {
-        eprintln!(
+        log::info!(
             "{} {} {} {:?} from {} with {:?}",
             info.method(),
             info.path(),

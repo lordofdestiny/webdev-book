@@ -18,12 +18,12 @@ impl Pagination {
     /// If the provided query params are not valid ( cannot be parsed as integers)
     /// we return an error.
     /// # Example query
-    /// GET requests to this route can have a pagination attached so we just
+    /// GET requests to this route can have a pagination attached, so we just
     /// return the questions we need `/questions?start=0&limit=10`
     pub fn extract(params: &HashMap<String, String>) -> Result<Self, error::PaginationError> {
         // Extract the start and limit from the query params
-        // If they are not provided we just return the default values
-        // Default values are start = 0 and limit = usize::MAX
+        // If they are not provided we just return the default values,
+        // which are: start = 0 and limit = usize::MAX
         let start = params
             .get("start")
             .map_or(Ok(0), |s| s.parse())
@@ -33,5 +33,9 @@ impl Pagination {
             .map_or(Ok(usize::MAX), |s| s.parse())
             .map_err(error::PaginationError)?;
         Ok(Pagination { start, limit })
+    }
+
+    pub fn is_default(&self) -> bool {
+        self.start == 0 && self.limit == usize::MAX
     }
 }
