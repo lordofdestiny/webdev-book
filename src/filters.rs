@@ -35,6 +35,20 @@ pub fn store_filter(store: Store) -> BoxedFilter<(Store,)> {
     warp::any().map(move || store.clone()).boxed()
 }
 
+/// This macro creates a warp trace filter with the given text
+macro_rules! with_trace {
+    ($what: literal) => {
+        warp::trace(|info| {
+            tracing::info_span!(
+                $what,
+                method = %info.method(),
+                path = %info.path(),
+                id = %uuid::Uuid::new_v4(),
+            )
+        })
+    };
+}
+
 /// This function returns the combined filter for the questions resource.
 ///
 /// The filter combines the following filters:
@@ -50,25 +64,30 @@ pub fn questions_filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
     routes::get_questions()
         .and(store_filter(store.clone()))
         .and_then(handlers::get_all)
+        .with(with_trace!("get_questions request"))
         .or(routes::get_question()
             .and(store_filter(store.clone()))
-            .and_then(handlers::get_question))
+            .and_then(handlers::get_question)
+            .with(with_trace!("get_question request")))
         .or(routes::add_question()
             .and(store_filter(store.clone()))
-            .and_then(handlers::add_question))
+            .and_then(handlers::add_question)
+            .with(with_trace!("add_question request")))
         .or(routes::update_question()
             .and(store_filter(store.clone()))
-            .and_then(handlers::update_question))
+            .and_then(handlers::update_question)
+            .with(with_trace!("update_questions request")))
         .or(routes::delete_question()
             .and(store_filter(store.clone()))
-            .and_then(handlers::delete_question))
+            .and_then(handlers::delete_question)
+            .with(with_trace!("delete_question request")))
         .boxed()
 }
 
 /// This function returns the combined filter for the answers resource.
 ///
 /// The filter combines the following filters:
-/// - `POST /questions/{id}/answers -> get_answers`
+/// - `POST /questions/{id}/answers -> add_answer`
 pub fn answers_filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
     use crate::handlers::answers as handlers;
     use crate::routes::answers as routes;
@@ -76,5 +95,6 @@ pub fn answers_filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
     routes::add_answer()
         .and(store_filter(store.clone()))
         .and_then(handlers::add_answer)
+        .with(with_trace!("add_answer request"))
         .boxed()
 }

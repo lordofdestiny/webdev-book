@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::{io::ErrorKind, str::FromStr, sync::atomic::AtomicUsize};
 
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,12 @@ use crate::types::NextId;
 /// allows us to generate a new id for each question.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct QuestionId(String);
+
+impl Display for QuestionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
 impl NextId for QuestionId {
     fn counter() -> &'static AtomicUsize {

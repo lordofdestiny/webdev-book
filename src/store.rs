@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+
 use tokio::sync::RwLock;
 
 use crate::types::{Answer, Id, Question, QuestionId};
@@ -10,7 +11,7 @@ use crate::types::{Answer, Id, Question, QuestionId};
 ///
 /// The store contains two maps: one for questions and one for answers.
 /// The maps are wrapped in an `Arc` and a `RwLock` to allow for concurrent access.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Store {
     /// This map contains all the questions. The key is the question
     /// ID and the value is the question.

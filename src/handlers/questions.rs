@@ -1,10 +1,13 @@
+use std::collections::HashMap;
+
+use tracing::{info, instrument};
+use warp::{http::StatusCode, Rejection, Reply};
+
 use crate::{
     error,
     store::Store,
     types::{NextId, Pagination, Question, QuestionId},
 };
-use std::collections::HashMap;
-use warp::{http::StatusCode, Rejection, Reply};
 
 /// Handler for `GET /questions?start={}&limit={}`
 ///
@@ -16,20 +19,20 @@ use warp::{http::StatusCode, Rejection, Reply};
 ///
 /// Returns `200 OK` on success \
 /// Returns `400 Bad Request` if the query parameters are invalid
+#[instrument]
 pub async fn get_all(
-    request_id: String,
     params: HashMap<String, String>,
     store: Store,
 ) -> Result<impl Reply, Rejection> {
-    log::info!("{request_id} Start querying questions");
+    info!("Querying questions");
 
     // Extract the pagination parameters from the query
     let pag = Pagination::extract(&params)?;
 
     if Pagination::is_default(&pag) {
-        log::info!("{request_id} No pagination");
+        info!(pagination = true);
     } else {
-        log::info!("{request_id} Pagination: {:?}", pag);
+        info!(pagination = false);
     }
 
     let Pagination { start, limit } = pag;
@@ -46,10 +49,18 @@ pub async fn get_all(
 ///
 /// Returns `200 OK` on success \
 /// Returns `404 Not Found` if the question does not exist
+#[instrument]
 pub async fn get_question(id: QuestionId, store: Store) -> Result<impl Reply, Rejection> {
+    info!("querying the question_id = {id}");
     match store.questions.read().await.get(&id) {
-        Some(q) => Ok(warp::reply::json(q)),
-        None => Err(warp::reject::custom(error::QuestionNotFound)),
+        Some(q) => {
+            info!(question_found = true);
+            Ok(warp::reply::json(q))
+        }
+        None => {
+            info!(question_found = false);
+            Err(warp::reject::custom(error::QuestionNotFound))
+        }
     }
 }
 
@@ -59,10 +70,13 @@ pub async fn get_question(id: QuestionId, store: Store) -> Result<impl Reply, Re
 ///
 /// Returns `201 Created` on success \
 /// Returns `400 Bad Request` if the question is invalid
+#[instrument]
 pub async fn add_question(data: Question, store: Store) -> Result<impl Reply, Rejection> {
+    info!("Adding a new question");
     // Generate a new id for the question
     let id = QuestionId::next();
     // Insert the question into the store
+    info!("question_id = {id}; Storing the question");
     store.questions.write().await.insert(
         id.clone(),
         Question {
@@ -88,15 +102,21 @@ pub async fn update_question(
     question: Question,
     store: Store,
 ) -> Result<impl Reply, Rejection> {
+    info!("querying the question_id = {id}; Updating the question");
     match store.questions.write().await.get_mut(&id) {
         Some(q) => {
+            info!(question_found = true);
             *q = Question {
-                id: Some(id),
+                id: Some(id.clone()),
                 ..question
             };
+            info!("question_id = {id}; Question updated");
             Ok(warp::reply::with_status("Question updated", StatusCode::OK))
         }
-        None => Err(warp::reject::custom(error::QuestionNotFound)),
+        None => {
+            info!(question_found = false);
+            Err(warp::reject::custom(error::QuestionNotFound))
+        }
     }
 }
 
@@ -107,8 +127,15 @@ pub async fn update_question(
 /// Returns `200 OK` on success \
 /// Returns `404 Not Found` if the question does not exist
 pub async fn delete_question(id: QuestionId, store: Store) -> Result<impl Reply, Rejection> {
+    info!("querying the question_id = {id}; Deleting the question");
     match store.questions.write().await.remove(&id) {
-        Some(_) => Ok(warp::reply::with_status("Question deleted", StatusCode::OK)),
-        None => Err(warp::reject::custom(error::QuestionNotFound)),
+        Some(_) => {
+            info!(question_found = true);
+            Ok(warp::reply::with_status("Question deleted", StatusCode::OK))
+        }
+        None => {
+            info!(question_found = false);
+            Err(warp::reject::custom(error::QuestionNotFound))
+        }
     }
 }

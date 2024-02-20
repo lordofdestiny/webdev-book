@@ -1,5 +1,7 @@
 #![warn(clippy::all)]
 
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{fmt, EnvFilter, Registry};
 use warp::Filter;
 
 mod error;
@@ -11,24 +13,26 @@ mod types;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    log4rs::init_file("log4rs.yaml", Default::default()).expect("Failed to initialize log4rs");
+    // Set up the logger filter
+    let log_filter: EnvFilter = std::env::var("RUST_LOG")
+        .unwrap_or_else(|_| "webdev-book=info,warp=error".to_owned())
+        .parse()?;
 
-    log::error!("This is an error!");
-    log::info!("This is info!");
-    log::warn!("This is a warning!");
+    // Set up rolling file
+    let file_appender = tracing_appender::rolling::hourly("logs", "webdev-book.log");
+    let (file_writer, _guard) = tracing_appender::non_blocking(file_appender);
 
-    let log = warp::log::custom(|info| {
-        log::info!(
-            "{} {} {} {:?} from {} with {:?}",
-            info.method(),
-            info.path(),
-            info.status(),
-            info.elapsed(),
-            info.remote_addr()
-                .map_or_else(|| "Unknown".to_string(), |addr| addr.to_string()),
-            info.request_headers()
-        );
-    });
+    // Set up the logger for the application.
+    // Log to the console and to the file.
+    Registry::default()
+        .with(
+            fmt::Layer::default()
+                .with_ansi(false)
+                .with_writer(file_writer),
+        )
+        .with(fmt::Layer::default().with_writer(std::io::stdout))
+        .with(log_filter)
+        .init();
 
     // This is the store that holds the questions and answers.
     let store = store::Store::new();
@@ -41,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let filter = filters::questions_filter(&store)
         .or(filters::answers_filter(&store))
         .with(filters::cors())
-        .with(log)
+        .with(warp::trace::request())
         .recover(error::return_error);
 
     // Start the server.
