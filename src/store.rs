@@ -1,6 +1,7 @@
 //! This module contains the store, which is a simple in-memory database.
 
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -44,5 +45,11 @@ impl Store {
 impl Default for Store {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Display for Store {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
