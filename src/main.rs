@@ -31,7 +31,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     // This is the store that holds the questions and answers.
-    let store = store::Store::new("postgres://postgres:admin@localhost:5432/webdev_book").await;
+    let store = store::Store::new("postgres://admin:admin@localhost:5432/webdev_book").await;
+
+    sqlx::migrate!()
+        .run(&store.clone().connection)
+        .await
+        .expect("Cannot run migrations");
 
     // This is the filter that will be used to serve the routes.
     // It is composed of the filters defined in the filters module.

@@ -1,7 +1,6 @@
 FROM postgres
 
-# initialization script
-# not for now
-COPY ./init.sql /docker-entrypoint-initdb.d/
+ENV PGDATABASE=webdev_book
+ENV PGUSER=admin
 
 EXPOSE 5432

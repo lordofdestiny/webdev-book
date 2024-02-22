@@ -10,8 +10,9 @@ services:
   db:
     build: db
     environment:
-      POSTGRES_PASSWORD: admin
       POSTGRES_DB: webdev_book
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
     volumes:
       - db_data:/var/lib/postgresql/data
     networks:
