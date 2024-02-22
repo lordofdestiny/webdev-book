@@ -15,7 +15,7 @@ mod types;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set up the logger filter
     let log_filter: EnvFilter = std::env::var("RUST_LOG")
-        .unwrap_or_else(|_| "webdev-book=info,warp=error".to_owned())
+        .unwrap_or_else(|_| "webdev_book=info,warp=error".to_owned())
         .parse()?;
 
     // Set up rolling file
@@ -25,17 +25,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set up the logger for the application.
     // Log to the console and to the file.
     Registry::default()
-        .with(
-            fmt::Layer::default()
-                .with_ansi(false)
-                .with_writer(file_writer),
-        )
+        .with(fmt::Layer::default().with_ansi(false).with_writer(file_writer))
         .with(fmt::Layer::default().with_writer(std::io::stdout))
         .with(log_filter)
         .init();
 
     // This is the store that holds the questions and answers.
-    let store = store::Store::new();
+    let store = store::Store::new("postgres://postgres:admin@localhost:5432/webdev_book").await;
 
     // This is the filter that will be used to serve the routes.
     // It is composed of the filters defined in the filters module.

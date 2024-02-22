@@ -1,12 +1,8 @@
-use std::collections::HashMap;
-use tracing::{info, instrument};
-use warp::{http::StatusCode, Rejection, Reply};
+use tracing::{event, info, instrument, Level};
+use warp::{Rejection, Reply};
 
-use crate::{
-    error,
-    store::Store,
-    types::{Answer, QuestionId},
-};
+use crate::types::NewAnswer;
+use crate::{error, store::Store, types::QuestionId};
 
 /// Handler for `POST /questions/{id}/answers`
 ///
@@ -15,41 +11,21 @@ use crate::{
 /// Returns `201 Created` on success. \
 /// Returns `404 Not Found` if the question does not exist.
 #[instrument]
-pub async fn add_answer(
-    question_id: QuestionId,
-    params: HashMap<String, String>,
-    store: Store,
-) -> Result<impl Reply, Rejection> {
-    info!("Adding an answer");
+pub async fn add_answer(question_id: QuestionId, new_answer: NewAnswer, store: Store) -> Result<impl Reply, Rejection> {
+    event!(target: "webdev_book", Level::INFO, "adding an answer for the question with question_id = {question_id}");
     // Check if the question exists
 
-    if !store.questions.read().await.contains_key(&question_id) {
-        info!(question_exists = false);
-        return Err(warp::reject::custom(error::QuestionNotFound));
+    match store.add_answer(question_id.0, new_answer.content).await {
+        Ok(_) => {
+            info!(target: "webdev_book", "created the answer for the question with question_id = {question_id}");
+            Ok(warp::reply::with_status(
+                "Answer created",
+                warp::http::StatusCode::CREATED,
+            ))
+        }
+        Err(e) => {
+            info!(target: "webdev_book", "error adding an answer: {:?}", e);
+            Err(warp::reject::custom(error::DatabaseQueryError(e)))
+        }
     }
-
-    info!(question_exists = true);
-
-    info!("Creating the question");
-    // Extract the content from the form
-    let content = params
-        .get("content")
-        .ok_or(error::AnswerContentMissing)?
-        .clone();
-
-    // Create the answer
-    let answer = Answer::new(content, question_id);
-
-    info!("Storing the question");
-    // Add the answer to the store
-    store
-        .answers
-        .write()
-        .await
-        .insert(answer.id.clone(), answer);
-
-    Ok(warp::reply::with_status(
-        "Answer added",
-        StatusCode::CREATED,
-    ))
 }

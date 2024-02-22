@@ -18,13 +18,7 @@ pub fn cors() -> warp::cors::Builder {
     warp::cors()
         .allow_any_origin()
         .allow_header("content-type")
-        .allow_methods(&[
-            Method::GET,
-            Method::POST,
-            Method::PUT,
-            Method::PATCH,
-            Method::DELETE,
-        ])
+        .allow_methods(&[Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
 }
 
 /// This function returns a filter that associates the store with the request.
@@ -84,7 +78,7 @@ pub fn questions_filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
         .boxed()
 }
 
-/// This function returns the combined filter for the answers resource.
+/// This function returns the combined filter for the "answers" resource.
 ///
 /// The filter combines the following filters:
 /// - `POST /questions/{id}/answers -> add_answer`

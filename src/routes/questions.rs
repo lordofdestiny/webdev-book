@@ -1,6 +1,8 @@
-use crate::types::{Question, QuestionId};
 use std::collections::HashMap;
+
 use warp::{filters::BoxedFilter, Filter};
+
+use crate::types::{NewQuestion, Question, QuestionId};
 
 /// GET /questions?start={}&limit={}
 ///
@@ -18,16 +20,14 @@ pub fn get_questions() -> BoxedFilter<(HashMap<String, String>,)> {
 /// Handler arguments:
 /// 1. `QuestionId` - Extracted from the URL path
 pub fn get_question() -> BoxedFilter<(QuestionId,)> {
-    warp::path!("questions" / QuestionId)
-        .and(warp::get())
-        .boxed()
+    warp::path!("questions" / QuestionId).and(warp::get()).boxed()
 }
 
 /// POST /questions
 ///
 /// Handler arguments:
 /// 1. `Question` - Extracted from the request body as JSON
-pub fn add_question() -> BoxedFilter<(Question,)> {
+pub fn add_question() -> BoxedFilter<(NewQuestion,)> {
     warp::path!("questions")
         .and(warp::post())
         .and(warp::body::json())
@@ -51,7 +51,5 @@ pub fn update_question() -> BoxedFilter<(QuestionId, Question)> {
 /// Handler arguments:
 /// 1. `QuestionId` - Extracted from the URL path
 pub fn delete_question() -> BoxedFilter<(QuestionId,)> {
-    warp::path!("questions" / QuestionId)
-        .and(warp::delete())
-        .boxed()
+    warp::path!("questions" / QuestionId).and(warp::delete()).boxed()
 }
