@@ -1,6 +1,6 @@
 //! This module contains the combined filters for the application resources.
 
-use warp::{filters::BoxedFilter, http::Method, Filter, Reply};
+use warp::{filters::BoxedFilter, http::Method, Filter};
 
 use crate::store::Store;
 
@@ -43,46 +43,4 @@ macro_rules! with_trace {
     };
 }
 
-/// This function returns the combined filter for the questions resource.
-///
-/// The filter combines the following filters:
-/// - `GET /questions -> get_questions`
-/// - `GET /questions/{id} -> get_question`
-/// - `POST /questions -> add_question`
-/// - `PUT /questions/{id} -> update_question`
-/// - `DELETE /questions/{id} -> delete_question`
-pub fn questions_filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
-    use crate::handlers::questions as handlers;
-    use crate::routes::questions as routes;
-
-    routes::get_questions(store.clone())
-        .and_then(handlers::get_all)
-        .with(with_trace!("get_questions request"))
-        .or(routes::get_question(store.clone())
-            .and_then(handlers::get_question)
-            .with(with_trace!("get_question request")))
-        .or(routes::add_question(store.clone())
-            .and_then(handlers::add_question)
-            .with(with_trace!("add_question request")))
-        .or(routes::update_question(store.clone())
-            .and_then(handlers::update_question)
-            .with(with_trace!("update_questions request")))
-        .or(routes::delete_question(store.clone())
-            .and_then(handlers::delete_question)
-            .with(with_trace!("delete_question request")))
-        .boxed()
-}
-
-/// This function returns the combined filter for the "answers" resource.
-///
-/// The filter combines the following filters:
-/// - `POST /questions/{id}/answers -> add_answer`
-pub fn answers_filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
-    use crate::handlers::answers as handlers;
-    use crate::routes::answers as routes;
-
-    routes::add_answer(store.clone())
-        .and_then(handlers::add_answer)
-        .with(with_trace!("add_answer request"))
-        .boxed()
-}
+pub(crate) use with_trace;

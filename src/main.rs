@@ -4,10 +4,10 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter, Registry};
 use warp::Filter;
 
+mod answers;
 mod error;
 mod filters;
-mod handlers;
-mod routes;
+mod questions;
 mod store;
 mod types;
 
@@ -43,8 +43,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // It handles the CORS headers and the error handling.
     // It handles resources at the /questions and /answers endpoints.
     // The error handling is done by the return_error function defined in the error module.
-    let filter = filters::questions_filter(&store)
-        .or(filters::answers_filter(&store))
+    let filter = questions::filter(&store)
+        .or(answers::filter(&store))
         .with(filters::cors())
         .with(warp::trace::request())
         .recover(error::return_error);

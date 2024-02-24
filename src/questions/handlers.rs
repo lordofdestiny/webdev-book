@@ -21,7 +21,7 @@ use crate::{
 /// Returns `200 OK` on success \
 /// Returns `400 Bad Request` if the query parameters are invalid
 #[instrument]
-pub async fn get_all(store: Store, params: HashMap<String, String>) -> Result<impl Reply, Rejection> {
+pub async fn get_questions(store: Store, params: HashMap<String, String>) -> Result<impl Reply, Rejection> {
     event!(target: "webdev_book", Level::INFO, "querying questions");
 
     // Extract the pagination parameters from the query
