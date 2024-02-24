@@ -9,40 +9,34 @@ use warp::{
 };
 
 /// This error is returned when the sends a malformed pagination parameter.
-#[derive(Debug)]
-pub struct PaginationError(pub std::num::ParseIntError);
-
-impl std::fmt::Display for PaginationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Cannot parse parameter: {}", self.0)
-    }
-}
+#[derive(thiserror::Error, Debug)]
+#[error("invalid pagination parameters: {0}")]
+pub struct PaginationError(#[from] pub std::num::ParseIntError);
 
 impl Reject for PaginationError {}
 
 /// This error is returned when the user tries to access a question that does not exist.
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
+#[error("question not found")]
 pub struct QuestionNotFound;
-
-impl std::fmt::Display for QuestionNotFound {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Question not found")
-    }
-}
 
 impl Reject for QuestionNotFound {}
 
 /// This error is returned any time the database query fails.
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
+#[error("database query failed: {0}")]
 pub struct DatabaseQueryError(pub SqlxError);
 
-impl std::fmt::Display for DatabaseQueryError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Database query error: Query could not be executed: {}", self.0)
+impl Reject for DatabaseQueryError {}
+
+macro_rules! tracing_event {
+    ($error:ident, $type:ty) => {
+        tracing::event!(target: "webdev_book", tracing::Level::ERROR, "{}", $error);
+    };
+    ($error:ident, $type:ty, $message_fmt:literal)=> {
+        tracing::event!(target: "webdev_book", tracing::Level::ERROR, $message_fmt, $error);
     }
 }
-
-impl Reject for DatabaseQueryError {}
 
 /// This macro implements the `return_error` function.
 ///
@@ -53,7 +47,7 @@ impl Reject for DatabaseQueryError {}
 /// The macro then generates a function that takes a rejection and returns a reply with the
 /// corresponding status code and the error message.
 macro_rules! impl_return_error {
-        ($($type:ty : ($status_code:expr, $message_fmt:literal),)*) => {
+        ($(($type:ty, $status_code:expr  $(, $message_fmt:literal)?),)*) => {
             /// This function returns the error message associated with the rejection.
             ///
             /// If the rejection is not associated with any error, it returns a `404 Not Found`.
@@ -61,7 +55,7 @@ macro_rules! impl_return_error {
             /// corresponding status code and the error message.
             pub async fn return_error(rej: Rejection) -> Result<impl Reply, Rejection> {
                 $(if let Some(error) = rej.find::<$type>() {
-                    tracing::event!(target: "webdev_book", tracing::Level::ERROR, $message_fmt, error);
+                    tracing_event!(error, $type $(, $message_fmt)?);
                     Ok(warp::reply::with_status(
                         error.to_string(),
                         $status_code,
@@ -74,9 +68,17 @@ macro_rules! impl_return_error {
     }
 
 impl_return_error!(
-    CorsForbidden : (StatusCode::FORBIDDEN, "CORS policy rejected the request: {}"),
-    QuestionNotFound : (StatusCode::NOT_FOUND, "{}"),
-    PaginationError : (StatusCode::BAD_REQUEST, "Invalid pagination parameters: {}"),
-    BodyDeserializeError : (StatusCode::UNPROCESSABLE_ENTITY, "Invalid request body (expected JSON): {}"),
-    DatabaseQueryError : (StatusCode::INTERNAL_SERVER_ERROR, "{}"),
+    (
+        CorsForbidden,
+        StatusCode::FORBIDDEN,
+        "CORS policy rejected the request: {}"
+    ),
+    (
+        BodyDeserializeError,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "invalid request body (expected JSON): {}"
+    ),
+    (QuestionNotFound, StatusCode::NOT_FOUND),
+    (PaginationError, StatusCode::BAD_REQUEST),
+    (DatabaseQueryError, StatusCode::INTERNAL_SERVER_ERROR),
 );
