@@ -1,85 +1,58 @@
-use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct BadWord {
+    /// Value replaced in the original string
     original: String,
+    /// Detected word
+    word: String,
+    /// Number of differences between original and word
     deviations: u32,
+    /// Start of the replaced word
     start: usize,
+    /// End of the replaced word
     end: usize,
 }
 
-fn default_censor_char() -> char {
-    '*'
-}
+const DEFAULT_CENSOR_CHAR: fn() -> char = || '*';
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct BadWords {
-    pub content: String,
-    pub censored_content: String,
-    pub bad_words_list: Vec<BadWord>,
-    #[serde(default = "default_censor_char")]
+    content: String,
+    censored_content: String,
+    bad_words_list: Vec<BadWord>,
+    #[serde(default = "DEFAULT_CENSOR_CHAR")]
     pub censor_char: char,
 }
 
 impl BadWords {
-    pub fn restore_word<F>(&self, index: usize, predicate: F) -> Option<String>
-    where
-        F: FnOnce(&BadWord) -> bool,
-    {
-        let bad_word = self.bad_words_list.get(index)?;
-
-        if !predicate(bad_word) {
-            return None;
-        }
-
-        let BadWord {
-            start, end, original, ..
-        } = bad_word;
-        let mut new_str = self.censored_content.clone();
-        new_str.replace_range(*start..*end, original);
-        Some(new_str)
+    #[allow(dead_code)]
+    pub fn original(&self) -> &str {
+        &self.content
     }
 
-    pub fn restore<F>(&mut self, predicate: F)
+    #[allow(dead_code)]
+    pub fn censored(&self) -> &str {
+        &self.censored_content
+    }
+
+    #[allow(dead_code)]
+    pub fn bad_words(&self) -> &Vec<BadWord> {
+        &self.bad_words_list
+    }
+
+    pub fn censor_original<F>(&self, predicate: F) -> String
     where
         F: FnMut(&&BadWord) -> bool,
     {
-        self.bad_words_list.iter().filter(predicate).for_each(
-            |BadWord {
-                 start, end, original, ..
-             }| { self.censored_content.replace_range(*start..*end, original) },
-        )
-    }
-
-    pub fn apply_word<F>(&self, index: usize, predicate: F) -> Option<String>
-    where
-        F: FnOnce(&BadWord) -> bool,
-    {
-        let bad_word = self.bad_words_list.get(index)?;
-
-        if !predicate(bad_word) {
-            return None;
-        }
-
-        let BadWord { start, end, .. } = bad_word;
-        let mut new_str = self.censored_content.clone();
-        let replacement = String::from(self.censor_char).repeat(end - start);
-        new_str.replace_range(*start..*end, &replacement);
-        Some(new_str)
-    }
-
-    pub fn apply<F>(&mut self, predicate: F)
-    where
-        F: FnMut(&&BadWord) -> bool,
-    {
-        self.bad_words_list
-            .iter()
-            .filter(predicate)
-            .for_each(|BadWord { start, end, .. }| {
+        self.bad_words_list.iter().filter(predicate).fold(
+            self.content.clone(),
+            |mut result, BadWord { start, end, .. }| {
                 let replacement = String::from(self.censor_char).repeat(end - start);
-                self.censored_content.replace_range(*start..*end, &replacement)
-            })
+                result.replace_range(*start..*end, &replacement);
+                result
+            },
+        )
     }
 }
 
@@ -136,7 +109,7 @@ impl BadWordsAPI {
     const API_ENDPOINT: &'static str = "https://api.apilayer.com/bad_words";
 
     pub fn build(api_key: String, censor_char: char) -> Result<Self, BadWordsAPIBuildError> {
-        let mut headers = HeaderMap::new();
+        let mut headers = reqwest::header::HeaderMap::new();
         headers.insert("apikey", api_key.parse()?);
 
         Ok(BadWordsAPI {
@@ -187,17 +160,9 @@ async fn main() -> Result<std::process::ExitCode, Box<dyn std::error::Error>> {
     let result = api.censor("a list of shit words, you son of a bitch").await?;
 
     match result {
-        BadWordsAPIResponse::BadWordsResponse(mut bad_words) => {
+        BadWordsAPIResponse::BadWordsResponse(bad_words) => {
             println!("Censored: {}", bad_words.censored_content);
-            bad_words.restore(|word| word.original.contains("son of a"));
-            println!("Restored: {}", bad_words.censored_content);
-            bad_words.restore(|word| word.original.contains("bitch"));
-            println!("Restored: {}", bad_words.censored_content);
-            bad_words.restore(|_| true);
-            println!("Restored: {}", bad_words.censored_content);
-
-            bad_words.apply(|_| true);
-            println!("Censored: {}", bad_words.censored_content);
+            println!("Censored: {}", bad_words.censor_original(|_| true));
 
             Ok(std::process::ExitCode::SUCCESS)
         }
