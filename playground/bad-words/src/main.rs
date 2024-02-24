@@ -153,8 +153,7 @@ impl BadWordsAPI {
 
 #[tokio::main]
 async fn main() -> Result<std::process::ExitCode, Box<dyn std::error::Error>> {
-    let api_key = std::env::var("API_LAYER_KEY").unwrap_or("KHFM68sNbwzuPqELmjnevUv2k17EdiBE".to_owned());
-    // .expect("API_LAYER_KEY not found");
+    let api_key = std::env::var("API_LAYER_KEY").expect("API_LAYER_KEY not found");
 
     let api = BadWordsAPI::build(api_key, '*')?;
     let result = api.censor("a list of shit words, you son of a bitch").await?;
