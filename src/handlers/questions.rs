@@ -21,7 +21,7 @@ use crate::{
 /// Returns `200 OK` on success \
 /// Returns `400 Bad Request` if the query parameters are invalid
 #[instrument]
-pub async fn get_all(params: HashMap<String, String>, store: Store) -> Result<impl Reply, Rejection> {
+pub async fn get_all(store: Store, params: HashMap<String, String>) -> Result<impl Reply, Rejection> {
     event!(target: "webdev_book", Level::INFO, "querying questions");
 
     // Extract the pagination parameters from the query
@@ -46,7 +46,7 @@ pub async fn get_all(params: HashMap<String, String>, store: Store) -> Result<im
 /// Returns `200 OK` on success \
 /// Returns `404 Not Found` if the question does not exist
 #[instrument]
-pub async fn get_question(id: QuestionId, store: Store) -> Result<impl Reply, Rejection> {
+pub async fn get_question(store: Store, id: QuestionId) -> Result<impl Reply, Rejection> {
     event!(target: "webdev_book", Level::INFO, "querying question_id = {id}");
 
     let question = store.get_question(id.0).await;
@@ -65,7 +65,7 @@ pub async fn get_question(id: QuestionId, store: Store) -> Result<impl Reply, Re
 /// Returns `201 Created` on success \
 /// Returns `400 Bad Request` if the question is invalid
 #[instrument]
-pub async fn add_question(new_question: NewQuestion, store: Store) -> Result<impl Reply, Rejection> {
+pub async fn add_question(store: Store, new_question: NewQuestion) -> Result<impl Reply, Rejection> {
     event!(target: "webdev_book", Level::INFO, "adding a new question");
 
     match store.add_question(new_question).await {
@@ -86,7 +86,7 @@ pub async fn add_question(new_question: NewQuestion, store: Store) -> Result<imp
 ///
 /// Returns `200 OK` on success \
 /// Returns `404 Not Found` if the question does not exist
-pub async fn update_question(id: QuestionId, question: Question, store: Store) -> Result<impl Reply, Rejection> {
+pub async fn update_question(store: Store, id: QuestionId, question: Question) -> Result<impl Reply, Rejection> {
     event!(target: "webdev_book", Level::INFO, "updating the question with question_id = {id}");
 
     match store.update_question(question, id.0).await {
@@ -107,7 +107,7 @@ pub async fn update_question(id: QuestionId, question: Question, store: Store) -
 ///
 /// Returns `200 OK` on success \
 /// Returns `404 Not Found` if the question does not exist
-pub async fn delete_question(id: QuestionId, store: Store) -> Result<impl Reply, Rejection> {
+pub async fn delete_question(store: Store, id: QuestionId) -> Result<impl Reply, Rejection> {
     event!(target: "webdev_book", Level::INFO, "deleting the question with question_id = {id}");
 
     match store.delete_question(id.0).await {

@@ -11,7 +11,7 @@ use crate::{error, store::Store, types::QuestionId};
 /// Returns `201 Created` on success. \
 /// Returns `404 Not Found` if the question does not exist.
 #[instrument]
-pub async fn add_answer(question_id: QuestionId, new_answer: NewAnswer, store: Store) -> Result<impl Reply, Rejection> {
+pub async fn add_answer(store: Store, question_id: QuestionId, new_answer: NewAnswer) -> Result<impl Reply, Rejection> {
     event!(target: "webdev_book", Level::INFO, "adding an answer for the question with question_id = {question_id}");
     // Check if the question exists
 

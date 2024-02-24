@@ -1,5 +1,7 @@
 use warp::{filters::BoxedFilter, Filter};
 
+use crate::filters::store_filter;
+use crate::store::Store;
 use crate::types::{NewAnswer, QuestionId};
 
 /// POST /questions/{id}/answers
@@ -7,9 +9,10 @@ use crate::types::{NewAnswer, QuestionId};
 /// Handler arguments:
 /// 1. `QuestionId` - Extracted from the URL path
 /// 2. `NewAnswer` - Extracted from the request body json
-pub fn add_answer() -> BoxedFilter<(QuestionId, NewAnswer)> {
-    warp::path!("questions" / QuestionId / "answers")
+pub fn add_answer(store: Store) -> BoxedFilter<(Store, QuestionId, NewAnswer)> {
+    store_filter(store.clone())
         .and(warp::post())
+        .and(warp::path!("questions" / QuestionId / "answers"))
         .and(warp::body::json())
         .boxed()
 }

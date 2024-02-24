@@ -55,24 +55,19 @@ pub fn questions_filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
     use crate::handlers::questions as handlers;
     use crate::routes::questions as routes;
 
-    routes::get_questions()
-        .and(store_filter(store.clone()))
+    routes::get_questions(store.clone())
         .and_then(handlers::get_all)
         .with(with_trace!("get_questions request"))
-        .or(routes::get_question()
-            .and(store_filter(store.clone()))
+        .or(routes::get_question(store.clone())
             .and_then(handlers::get_question)
             .with(with_trace!("get_question request")))
-        .or(routes::add_question()
-            .and(store_filter(store.clone()))
+        .or(routes::add_question(store.clone())
             .and_then(handlers::add_question)
             .with(with_trace!("add_question request")))
-        .or(routes::update_question()
-            .and(store_filter(store.clone()))
+        .or(routes::update_question(store.clone())
             .and_then(handlers::update_question)
             .with(with_trace!("update_questions request")))
-        .or(routes::delete_question()
-            .and(store_filter(store.clone()))
+        .or(routes::delete_question(store.clone())
             .and_then(handlers::delete_question)
             .with(with_trace!("delete_question request")))
         .boxed()
@@ -86,8 +81,7 @@ pub fn answers_filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
     use crate::handlers::answers as handlers;
     use crate::routes::answers as routes;
 
-    routes::add_answer()
-        .and(store_filter(store.clone()))
+    routes::add_answer(store.clone())
         .and_then(handlers::add_answer)
         .with(with_trace!("add_answer request"))
         .boxed()
