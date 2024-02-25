@@ -34,6 +34,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let store = store::Store::new("postgres://admin:admin@localhost:5432/webdev_book").await;
 
     sqlx::migrate!()
+        .undo(&store.clone().connection, 0)
+        .await
+        .expect("Cannot undo migrations");
+
+    sqlx::migrate!()
         .run(&store.clone().connection)
         .await
         .expect("Cannot run migrations");
