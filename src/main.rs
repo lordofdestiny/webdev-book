@@ -5,6 +5,7 @@ use tracing_subscriber::{fmt, EnvFilter, Registry};
 use warp::Filter;
 
 mod answers;
+mod api;
 mod error;
 mod filters;
 mod questions;

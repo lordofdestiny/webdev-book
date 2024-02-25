@@ -87,6 +87,7 @@ struct BadWordsAPI {
     client: reqwest::Client,
 }
 
+//noinspection DuplicatedCode
 #[derive(thiserror::Error, Debug)]
 enum BadWordsAPIBuildError {
     #[error("invalid header value: {0}")]
@@ -108,6 +109,7 @@ enum BadWordsAPIError {
 impl BadWordsAPI {
     const API_ENDPOINT: &'static str = "https://api.apilayer.com/bad_words";
 
+    //noinspection DuplicatedCode
     pub fn build(api_key: String, censor_char: char) -> Result<Self, BadWordsAPIBuildError> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert("apikey", api_key.parse()?);

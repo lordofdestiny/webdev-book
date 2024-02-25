@@ -1,2 +1,3 @@
 [env]
 RUST_LOG = "webdev_book=info,warp=error"
+API_LAYER_KEY="KHFM68sNbwzuPqELmjnevUv2k17EdiBE"

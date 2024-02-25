@@ -1,6 +1,6 @@
 //! This module contains the error handling for the API.
 
-use sqlx::Error as SqlxError;
+use tracing::{instrument, warn};
 use warp::{
     filters::{body::BodyDeserializeError, cors::CorsForbidden},
     http::StatusCode,
@@ -8,77 +8,101 @@ use warp::{
     Rejection, Reply,
 };
 
-/// This error is returned when the sends a malformed pagination parameter.
+use crate::api;
+use crate::types::QuestionId;
+
 #[derive(thiserror::Error, Debug)]
-#[error("invalid pagination parameters: {0}")]
-pub struct PaginationError(#[from] pub std::num::ParseIntError);
+#[error("{0}")]
+pub struct MissingQuestion(pub QuestionId);
 
-impl Reject for PaginationError {}
-
-/// This error is returned when the user tries to access a question that does not exist.
-#[derive(thiserror::Error, Debug)]
-#[error("question not found")]
-pub struct QuestionNotFound;
-
-impl Reject for QuestionNotFound {}
-
-/// This error is returned any time the database query fails.
-#[derive(thiserror::Error, Debug)]
-#[error("database query failed: {0}")]
-pub struct DatabaseQueryError(pub SqlxError);
-
-impl Reject for DatabaseQueryError {}
-
-macro_rules! tracing_event {
-    ($error:ident, $type:ty) => {
-        tracing::event!(target: "webdev_book", tracing::Level::ERROR, "{}", $error);
-    };
-    ($error:ident, $type:ty, $message_fmt:literal)=> {
-        tracing::event!(target: "webdev_book", tracing::Level::ERROR, $message_fmt, $error);
+impl From<QuestionId> for MissingQuestion {
+    fn from(id: QuestionId) -> Self {
+        MissingQuestion(id)
     }
 }
 
-/// This macro implements the `return_error` function.
-///
-/// Macro is used to avoid code duplication associated with calling `reject.find::<ErrorType>()`.
-/// The macro takes a list of types and their corresponding status code as pairs separated by a
-/// colon.
-///
-/// The macro then generates a function that takes a rejection and returns a reply with the
-/// corresponding status code and the error message.
-macro_rules! impl_return_error {
-        ($(($type:ty, $status_code:expr  $(, $message_fmt:literal)?),)*) => {
-            /// This function returns the error message associated with the rejection.
-            ///
-            /// If the rejection is not associated with any error, it returns a `404 Not Found`.
-            /// If the rejection is associated with an error, it returns the error message with the
-            /// corresponding status code and the error message.
-            pub async fn return_error(rej: Rejection) -> Result<impl Reply, Rejection> {
-                $(if let Some(error) = rej.find::<$type>() {
-                    tracing_event!(error, $type $(, $message_fmt)?);
-                    Ok(warp::reply::with_status(
-                        error.to_string(),
-                        $status_code,
-                    ))
-                } else)* {
-                    Err(warp::reject::not_found())
-                }
-            }
-        };
-    }
+#[derive(thiserror::Error, Debug, Clone)]
+#[error("status: {status}, message: {message}")]
+pub struct APILayerError {
+    pub status: StatusCode,
+    pub message: String,
+}
 
-impl_return_error!(
-    (
-        CorsForbidden,
-        StatusCode::FORBIDDEN,
-        "CORS policy rejected the request: {}"
-    ),
-    (
-        BodyDeserializeError,
-        StatusCode::UNPROCESSABLE_ENTITY,
-        "invalid request body (expected JSON): {}"
-    ),
-    (QuestionNotFound, StatusCode::NOT_FOUND),
-    (PaginationError, StatusCode::BAD_REQUEST),
-    (DatabaseQueryError, StatusCode::INTERNAL_SERVER_ERROR),
-);
+impl Reject for APILayerError {}
+
+impl APILayerError {
+    pub async fn transform_error(res: reqwest::Response) -> Self {
+        Self {
+            status: res.status(),
+            message: res.json::<api::APIResponse>().await.unwrap().message,
+        }
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum ServiceError {
+    #[error("invalid pagination parameters: {0}")]
+    PaginationError(#[from] std::num::ParseIntError),
+
+    #[error("question {0} not found")]
+    QuestionNotFound(#[from] MissingQuestion),
+
+    #[error("database query error: {0}")]
+    DatabaseQueryError(#[from] sqlx::Error),
+
+    #[error("external API error: {0}")]
+    ExternalAPIError(#[from] reqwest::Error),
+
+    #[error("external client error: {0}")]
+    ClientError(APILayerError),
+
+    #[error("external server error: {0}")]
+    ServerError(APILayerError),
+}
+
+impl ServiceError {
+    pub fn status_code(&self) -> StatusCode {
+        match self {
+            ServiceError::PaginationError(_) => StatusCode::BAD_REQUEST,
+            ServiceError::QuestionNotFound(_) => StatusCode::NOT_FOUND,
+            ServiceError::DatabaseQueryError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ServiceError::ExternalAPIError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ServiceError::ClientError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ServiceError::ServerError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
+impl Reject for ServiceError {}
+
+macro_rules! tracing_event {
+    ($error:expr) => {
+        tracing::event!(target: "webdev_book", tracing::Level::ERROR, "{}", $error);
+    };
+}
+
+#[instrument]
+pub async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
+    if let Some(service_error) = r.find::<ServiceError>() {
+        tracing_event!(service_error);
+        Ok(warp::reply::with_status(
+            service_error.to_string(),
+            service_error.status_code(),
+        ))
+    } else if let Some(error) = r.find::<CorsForbidden>() {
+        tracing_event!(error);
+        Ok(warp::reply::with_status(error.to_string(), StatusCode::FORBIDDEN))
+    } else if let Some(error) = r.find::<BodyDeserializeError>() {
+        tracing_event!(error);
+        Ok(warp::reply::with_status(
+            error.to_string(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ))
+    } else {
+        warn!(target: "webdev_book", "Request route not found: {:?}", r);
+        Ok(warp::reply::with_status(
+            "route not found".to_string(),
+            StatusCode::NOT_FOUND,
+        ))
+    }
+}

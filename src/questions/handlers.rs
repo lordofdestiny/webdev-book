@@ -5,7 +5,7 @@ use warp::{http::StatusCode, Rejection, Reply};
 
 use crate::types::NewQuestion;
 use crate::{
-    error,
+    error::ServiceError,
     store::Store,
     types::{Pagination, Question, QuestionId},
 };
@@ -34,7 +34,7 @@ pub async fn get_questions(store: Store, params: HashMap<String, String>) -> Res
         Ok(questions) => Ok(warp::reply::json(&questions)),
         Err(e) => {
             error!(target: "webdev_book", "Failed to get questions: {:?}", e);
-            Err(warp::reject::custom(error::DatabaseQueryError(e)))
+            Err(warp::reject::custom(ServiceError::DatabaseQueryError(e)))
         }
     }
 }
@@ -54,7 +54,7 @@ pub async fn get_question(store: Store, id: QuestionId) -> Result<impl Reply, Re
 
     match question {
         Ok(q) => Ok(warp::reply::json(&q)),
-        Err(_) => Err(warp::reject::custom(error::QuestionNotFound)),
+        Err(_) => Err(warp::reject::custom(ServiceError::QuestionNotFound(id.into()))),
     }
 }
 
@@ -68,15 +68,25 @@ pub async fn get_question(store: Store, id: QuestionId) -> Result<impl Reply, Re
 pub async fn add_question(store: Store, new_question: NewQuestion) -> Result<impl Reply, Rejection> {
     event!(target: "webdev_book", Level::INFO, "adding a new question");
 
+    info!(target: "webdev_book", "censoring content...");
+    let bad_words = store
+        .bad_words_api
+        .lock()
+        .await
+        .censor(new_question.content.clone())
+        .await?;
+
+    let new_question = NewQuestion {
+        content: bad_words.censored_content,
+        ..new_question
+    };
+
     match store.add_question(new_question).await {
         Ok(question) => {
-            info!(target: "webdev_book", "Created a question with question_id = {}", question.id);
-            Ok(warp::reply::with_status("Question created", StatusCode::CREATED))
+            info!(target: "webdev_book", "created a question with question_id = {}", question.id);
+            Ok(warp::reply::json(&question))
         }
-        Err(e) => {
-            error!(target: "webdev_book", "Failed to create a question: {:?}", e);
-            Err(warp::reject::custom(error::DatabaseQueryError(e)))
-        }
+        Err(e) => Err(warp::reject::custom(ServiceError::DatabaseQueryError(e))),
     }
 }
 
@@ -89,15 +99,16 @@ pub async fn add_question(store: Store, new_question: NewQuestion) -> Result<imp
 pub async fn update_question(store: Store, id: QuestionId, question: Question) -> Result<impl Reply, Rejection> {
     event!(target: "webdev_book", Level::INFO, "updating the question with question_id = {id}");
 
-    match store.update_question(question, id.0).await {
+    match store
+        .update_question(question, id.0)
+        .await
+        .map_err(ServiceError::DatabaseQueryError)
+    {
         Ok(_) => {
             info!(target: "webdev_book", "updated question with question_id = {id}");
             Ok(warp::reply::with_status("Question updated", StatusCode::OK))
         }
-        Err(e) => {
-            error!(target: "webdev_book", "Failed to update a question: {:?}", e);
-            Err(warp::reject::custom(error::DatabaseQueryError(e)))
-        }
+        Err(e) => Err(warp::reject::custom(e)),
     }
 }
 
@@ -115,13 +126,7 @@ pub async fn delete_question(store: Store, id: QuestionId) -> Result<impl Reply,
             info!(target: "webdev_book", "deleted question with question_id = {id}");
             Ok(warp::reply::with_status("Question deleted", StatusCode::OK))
         }
-        Ok(false) => {
-            error!(target: "webdev_book", "Failed to delete a question: question_id = {id}, because it does not exist");
-            Err(warp::reject::custom(error::QuestionNotFound))
-        }
-        Err(e) => {
-            error!(target: "webdev_book", "Failed to update a question: {:?}", e);
-            Err(warp::reject::custom(error::DatabaseQueryError(e)))
-        }
+        Ok(false) => Err(warp::reject::custom(ServiceError::QuestionNotFound(id.into()))),
+        Err(e) => Err(warp::reject::custom(ServiceError::DatabaseQueryError(e))),
     }
 }

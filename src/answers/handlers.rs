@@ -2,7 +2,7 @@ use tracing::{event, info, instrument, Level};
 use warp::{Rejection, Reply};
 
 use crate::types::NewAnswer;
-use crate::{error, store::Store, types::QuestionId};
+use crate::{error::ServiceError, store::Store, types::QuestionId};
 
 /// Handler for `POST /questions/{id}/answers`
 ///
@@ -25,7 +25,7 @@ pub async fn add_answer(store: Store, question_id: QuestionId, new_answer: NewAn
         }
         Err(e) => {
             info!(target: "webdev_book", "error adding an answer: {:?}", e);
-            Err(warp::reject::custom(error::DatabaseQueryError(e)))
+            Err(warp::reject::custom(ServiceError::DatabaseQueryError(e)))
         }
     }
 }

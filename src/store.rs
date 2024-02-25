@@ -1,18 +1,28 @@
 //! This module contains the store, which is a simple in-memory database.
 
 use std::fmt::Display;
+use std::sync::Arc;
 
 use sqlx::postgres::{PgPool, PgPoolOptions};
+use tokio::sync::Mutex;
 
+use crate::api::bad_words::BadWordsAPI;
 use crate::types::{Answer, NewQuestion, Pagination, Question};
 
 /// This struct represents the store, which is a simple in-memory database.
 ///
 /// The store contains two maps: one for questions and one for answers.
 /// The maps are wrapped in an `Arc` and a `RwLock` to allow for concurrent access.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Store {
     pub connection: PgPool,
+    pub bad_words_api: Arc<Mutex<BadWordsAPI>>,
+}
+
+impl std::fmt::Debug for Store {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Store").field("connection", &self.connection).finish()
+    }
 }
 
 impl Store {
@@ -32,7 +42,13 @@ impl Store {
             Err(e) => panic!("Couldn't establish DB connection: {}", e),
         };
 
-        Store { connection: db_pool }
+        let api_layer_key = std::env!("API_LAYER_KEY", "API_LAYER_KEY not found");
+        let bad_words_api = BadWordsAPI::build(api_layer_key, '*').expect("Couldn't build BadWordsAPI");
+
+        Store {
+            connection: db_pool,
+            bad_words_api: Arc::new(Mutex::new(bad_words_api)),
+        }
     }
 
     /// This function returns all questions from the table `questions`.
