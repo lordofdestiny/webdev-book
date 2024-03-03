@@ -1,5 +1,7 @@
 //! This module contains the error handling for the API.
 
+use reqwest::Error as ReqwestError;
+use reqwest_middleware::Error as ReqwestMiddlewareError;
 use tracing::{error, instrument, warn};
 use warp::{
     filters::{body::BodyDeserializeError, cors::CorsForbidden},
@@ -50,13 +52,15 @@ pub enum ServiceError {
     #[error("cannot update, invalid data")]
     DatabaseQueryError(#[from] sqlx::Error),
 
-    #[error("external API error: {0}")]
-    ExternalAPIError(#[from] reqwest::Error),
+    #[error("external API error:")]
+    ReqwestAPIError(#[from] ReqwestError),
+    #[error("external API error")]
+    MiddlewareReqwestAPIError(#[from] ReqwestMiddlewareError),
 
-    #[error("external client error: {0}")]
+    #[error("external client error")]
     ClientError(APILayerError),
 
-    #[error("external server error: {0}")]
+    #[error("external server error")]
     ServerError(APILayerError),
 }
 
@@ -66,7 +70,8 @@ impl ServiceError {
             ServiceError::PaginationError(_) => StatusCode::BAD_REQUEST,
             ServiceError::QuestionNotFound(_) => StatusCode::NOT_FOUND,
             ServiceError::DatabaseQueryError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ServiceError::ExternalAPIError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ServiceError::ReqwestAPIError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ServiceError::MiddlewareReqwestAPIError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ServiceError::ClientError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ServiceError::ServerError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }

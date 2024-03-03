@@ -1,3 +1,5 @@
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use serde::{Deserialize, Serialize};
 use tracing::{error, instrument, trace};
 
@@ -24,7 +26,7 @@ pub struct BadWordsResponse {
 #[derive(Debug)]
 pub struct BadWordsAPI {
     url: String,
-    client: reqwest::Client,
+    client: ClientWithMiddleware,
 }
 
 //noinspection DuplicatedCode
@@ -44,13 +46,21 @@ impl BadWordsAPI {
 
     //noinspection DuplicatedCode
     pub fn build(api_key: &str, censor_char: char) -> Result<Self, BadWordsAPIBuildError> {
+        let retry_policy = ExponentialBackoff::builder()
+            .build_with_max_retries(3);
+
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert("apikey", api_key.parse()?);
 
-        Ok(BadWordsAPI {
-            url: Self::url(censor_char),
-            client: reqwest::Client::builder().default_headers(headers).build()?,
-        })
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()?;
+
+        let client = ClientBuilder::new(client)
+            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+            .build();
+
+        Ok(BadWordsAPI { url: Self::url(censor_char), client })
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -59,7 +69,7 @@ impl BadWordsAPI {
         let response = match self.client.post(&self.url).body(text).send().await {
             Ok(response) => response,
             Err(e) => {
-                return Err(ServiceError::ExternalAPIError(e));
+                return Err(e.into());
             }
         };
         trace!(test_censored = response.status().is_success());
@@ -76,7 +86,7 @@ impl BadWordsAPI {
             });
         }
 
-        response.json().await.map_err(ServiceError::ExternalAPIError)
+        response.json().await.map_err(|e| e.into())
     }
 
     #[instrument(level = "debug", skip(self))]
