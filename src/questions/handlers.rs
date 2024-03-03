@@ -66,12 +66,13 @@ pub async fn add_question(store: Store, new_question: NewQuestion) -> Result<imp
 
     let NewQuestion { title, content, tags } = new_question;
 
-    trace!("censoring title...");
-    let title = store.bad_words_api.censor(title).await?;
-    debug!("censored title: {title}");
+    trace!("censoring title and content...");
+    let (title, content) = tokio::try_join!(
+        store.bad_words_api.censor(title),
+        store.bad_words_api.censor(content)
+    )?;
 
-    trace!("censoring content...");
-    let content = store.bad_words_api.censor(content).await?;
+    debug!("censored title: {title}");
     debug!("censored content: {content}");
 
     match store.add_question(NewQuestion { title, content, tags }).await {
@@ -93,12 +94,13 @@ pub async fn update_question(store: Store, id: QuestionId, question: Question) -
         title, content, tags, ..
     } = question;
 
-    trace!("censoring title...");
-    let title = store.bad_words_api.censor(title).await?;
-    debug!("censored title: {title}");
+    trace!("censoring title and content...");
+    let (title, content) = tokio::try_join!(
+        store.bad_words_api.censor(title),
+        store.bad_words_api.censor(content)
+    )?;
 
-    trace!("censoring content...");
-    let content = store.bad_words_api.censor(content).await?;
+    debug!("censored title: {title}");
     debug!("censored content: {content}");
 
     let censored_question = Question {
