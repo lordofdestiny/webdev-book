@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 
-use tracing::{error, event, info, instrument, Level};
-use warp::{http::StatusCode, Rejection, Reply};
+use tracing::{debug, info, instrument, trace};
+use warp::{Rejection, Reply};
+use warp::http::StatusCode;
+use warp::reply::{json, with_status};
 
-use crate::types::NewQuestion;
 use crate::{
     error::ServiceError,
     store::Store,
     types::{Pagination, Question, QuestionId},
 };
+use crate::types::NewQuestion;
 
 /// Handler for `GET /questions?start={}&limit={}`
 ///
@@ -17,116 +19,118 @@ use crate::{
 /// - limit: usize - default `usize::MAX`
 ///
 /// Returns a list no more than `limit` questions, starting from `offset`.
-///
-/// Returns `200 OK` on success \
-/// Returns `400 Bad Request` if the query parameters are invalid
-#[instrument]
+#[instrument(target = "webdev_book::questions", skip(store))]
 pub async fn get_questions(store: Store, params: HashMap<String, String>) -> Result<impl Reply, Rejection> {
-    event!(target: "webdev_book", Level::INFO, "querying questions");
+    trace!("querying questions");
 
     // Extract the pagination parameters from the query
     let pag = Pagination::extract(&params)?;
 
-    info!(target: "webdev_book", pagination = !pag.is_default());
+    debug!(pagination = ?pag);
 
     // Read the questions from the store
     match store.get_questions(pag).await {
-        Ok(questions) => Ok(warp::reply::json(&questions)),
-        Err(e) => {
-            error!(target: "webdev_book", "Failed to get questions: {:?}", e);
-            Err(warp::reject::custom(ServiceError::DatabaseQueryError(e)))
+        Ok(questions) => {
+            debug!(questions_found = questions.len());
+            Ok(json(&questions))
         }
+        Err(e) => Err(ServiceError::DatabaseQueryError(e).into()),
     }
 }
 
 /// Handler for `GET /questions/{id}`
 ///
 /// Returns the question with the given id
-///
-/// Returns `200 OK` on success \
-/// Returns `404 Not Found` if the question does not exist
-#[instrument]
+#[instrument(target = "webdev_book::questions", skip(store))]
 pub async fn get_question(store: Store, id: QuestionId) -> Result<impl Reply, Rejection> {
-    event!(target: "webdev_book", Level::INFO, "querying question_id = {id}");
+    trace!("querying question_id = {id}");
 
-    let question = store.get_question(id.0).await;
-    info!(target: "webdev_book", question_found = question.is_ok());
+    let question = store
+        .get_question(id.0)
+        .await
+        .map_err(ServiceError::DatabaseQueryError)?;
+    debug!(question_found = question.is_some());
 
     match question {
-        Ok(q) => Ok(warp::reply::json(&q)),
-        Err(_) => Err(warp::reject::custom(ServiceError::QuestionNotFound(id.into()))),
+        Some(question) => Ok(json(&question)),
+        None => Err(ServiceError::QuestionNotFound(id.into()).into()),
     }
 }
 
 /// Handler for `POST /questions`
 ///
 /// Creates a new question
-///
-/// Returns `201 Created` on success \
-/// Returns `400 Bad Request` if the question is invalid
-#[instrument]
+#[instrument(target = "webdev_book::questions", skip(store))]
 pub async fn add_question(store: Store, new_question: NewQuestion) -> Result<impl Reply, Rejection> {
-    event!(target: "webdev_book", Level::INFO, "adding a new question");
+    trace!("adding a new question");
 
-    info!(target: "webdev_book", "censoring content...");
-    let bad_words = store
-        .bad_words_api
-        .lock()
-        .await
-        .censor(new_question.content.clone())
-        .await?;
+    let NewQuestion { title, content, tags } = new_question;
 
-    let new_question = NewQuestion {
-        content: bad_words.censored_content,
-        ..new_question
-    };
+    trace!("censoring title...");
+    let title = store.bad_words_api.censor(title).await?;
+    debug!("censored title: {title}");
 
-    match store.add_question(new_question).await {
+    trace!("censoring content...");
+    let content = store.bad_words_api.censor(content).await?;
+    debug!("censored content: {content}");
+
+    match store.add_question(NewQuestion { title, content, tags }).await {
         Ok(question) => {
-            info!(target: "webdev_book", "created a question with question_id = {}", question.id);
-            Ok(warp::reply::json(&question))
+            info!("created a question with question_id = {}", question.id);
+            Ok(with_status(json(&question), StatusCode::CREATED))
         }
-        Err(e) => Err(warp::reject::custom(ServiceError::DatabaseQueryError(e))),
+        Err(e) => Err(ServiceError::DatabaseQueryError(e).into()),
     }
 }
 
 /// Handler for `PUT /questions/{id}`
 ///
 /// Updates the question with the given id
-///
-/// Returns `200 OK` on success \
-/// Returns `404 Not Found` if the question does not exist
+#[instrument(target = "webdev_book::questions", skip(store))]
 pub async fn update_question(store: Store, id: QuestionId, question: Question) -> Result<impl Reply, Rejection> {
-    event!(target: "webdev_book", Level::INFO, "updating the question with question_id = {id}");
+    trace!("updating the question with question_id = {id}");
+    let Question {
+        title, content, tags, ..
+    } = question;
 
-    match store
-        .update_question(question, id.0)
-        .await
-        .map_err(ServiceError::DatabaseQueryError)
-    {
-        Ok(_) => {
-            info!(target: "webdev_book", "updated question with question_id = {id}");
-            Ok(warp::reply::with_status("Question updated", StatusCode::OK))
+    trace!("censoring title...");
+    let title = store.bad_words_api.censor(title).await?;
+    debug!("censored title: {title}");
+
+    trace!("censoring content...");
+    let content = store.bad_words_api.censor(content).await?;
+    debug!("censored content: {content}");
+
+    let censored_question = Question {
+        id: id.clone(),
+        title,
+        content,
+        tags,
+    };
+
+    match store.update_question(censored_question, id.0).await {
+        Ok(question) => {
+            info!("updated question with question_id = {id}");
+            debug!(updated_question = ?question);
+            Ok(with_status("Question updated", StatusCode::OK))
         }
-        Err(e) => Err(warp::reject::custom(e)),
+        Err(e) => Err(ServiceError::DatabaseQueryError(e).into()),
     }
 }
 
 /// Handler for `DELETE /questions/{id}`
 ///
 /// Deletes the question with the given id
-///
-/// Returns `200 OK` on success \
-/// Returns `404 Not Found` if the question does not exist
+#[instrument(target = "webdev_book::questions", skip(store))]
 pub async fn delete_question(store: Store, id: QuestionId) -> Result<impl Reply, Rejection> {
-    event!(target: "webdev_book", Level::INFO, "deleting the question with question_id = {id}");
+    trace!("deleting the question with question_id = {id}");
 
     match store.delete_question(id.0).await {
         Ok(true) => {
-            info!(target: "webdev_book", "deleted question with question_id = {id}");
-            Ok(warp::reply::with_status("Question deleted", StatusCode::OK))
+            info!("deleted question with question_id = {id}");
+            Ok(with_status("Question deleted", StatusCode::OK))
         }
-        Ok(false) => Err(warp::reject::custom(ServiceError::QuestionNotFound(id.into()))),
-        Err(e) => Err(warp::reject::custom(ServiceError::DatabaseQueryError(e))),
+        Ok(false) => Err(ServiceError::QuestionNotFound(id.into()).into()),
+        Err(e) => Err(ServiceError::DatabaseQueryError(e).into()),
     }
 }

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tracing::{error, instrument, trace};
 
 use crate::error::{APILayerError, ServiceError};
 
@@ -38,7 +38,6 @@ pub enum BadWordsAPIBuildError {
 
 impl BadWordsAPI {
     const API_ENDPOINT: &'static str = "https://api.apilayer.com/bad_words";
-
     fn url(censor_char: char) -> String {
         format!("{}?censor_character={censor_char}", Self::API_ENDPOINT)
     }
@@ -54,24 +53,35 @@ impl BadWordsAPI {
         })
     }
 
-    pub async fn censor(&self, text: String) -> Result<BadWordsResponse, ServiceError> {
+    #[instrument(level = "debug", skip(self))]
+    pub async fn check_profanity(&self, text: String) -> Result<BadWordsResponse, ServiceError> {
+        trace!("checking profanity in text: {}", text);
         let response = match self.client.post(&self.url).body(text).send().await {
             Ok(response) => response,
             Err(e) => {
                 return Err(ServiceError::ExternalAPIError(e));
             }
         };
+        trace!(test_censored = response.status().is_success());
 
         if !response.status().is_success() {
             let client_error = response.status().is_client_error();
             let error = APILayerError::transform_error(response).await;
             return Err(if client_error {
+                trace!("client_error: {}", error.message);
                 ServiceError::ClientError(error)
             } else {
+                trace!("server_error: {}", error.message);
                 ServiceError::ServerError(error)
             });
         }
 
         response.json().await.map_err(ServiceError::ExternalAPIError)
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    pub async fn censor(&self, text: String) -> Result<String, ServiceError> {
+        trace!("censoring text: {}", text);
+        self.check_profanity(text).await.map(|res| res.censored_content)
     }
 }

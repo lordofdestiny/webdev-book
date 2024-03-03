@@ -1,7 +1,7 @@
 #![warn(clippy::all)]
 
+use tracing_subscriber::{EnvFilter, fmt, Registry};
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::{fmt, EnvFilter, Registry};
 use warp::Filter;
 
 mod answers;

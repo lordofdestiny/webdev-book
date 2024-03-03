@@ -1,8 +1,10 @@
-use tracing::{event, info, instrument, Level};
+use tracing::{debug, info, instrument, trace};
 use warp::{Rejection, Reply};
+use warp::http::StatusCode;
+use warp::reply::with_status;
 
-use crate::types::NewAnswer;
 use crate::{error::ServiceError, store::Store, types::QuestionId};
+use crate::types::NewAnswer;
 
 /// Handler for `POST /questions/{id}/answers`
 ///
@@ -10,22 +12,21 @@ use crate::{error::ServiceError, store::Store, types::QuestionId};
 ///
 /// Returns `201 Created` on success. \
 /// Returns `404 Not Found` if the question does not exist.
-#[instrument]
+#[instrument(target = "webdev_book::answers", skip(store))]
 pub async fn add_answer(store: Store, question_id: QuestionId, new_answer: NewAnswer) -> Result<impl Reply, Rejection> {
-    event!(target: "webdev_book", Level::INFO, "adding an answer for the question with question_id = {question_id}");
+    trace!("adding an answer for the question with question_id = {question_id}");
     // Check if the question exists
 
-    match store.add_answer(question_id.0, new_answer.content).await {
-        Ok(_) => {
-            info!(target: "webdev_book", "created the answer for the question with question_id = {question_id}");
-            Ok(warp::reply::with_status(
-                "Answer created",
-                warp::http::StatusCode::CREATED,
-            ))
+    trace!("censoring the answer content");
+    let content = store.bad_words_api.censor(new_answer.content).await?;
+    debug!("censored content: {content}");
+
+    match store.add_answer(question_id.0, content).await {
+        Ok(answer) => {
+            info!("created the answer for the question with question_id = {question_id}");
+            debug!("created the answer: {:?}", answer);
+            Ok(with_status("Answer created", StatusCode::CREATED))
         }
-        Err(e) => {
-            info!(target: "webdev_book", "error adding an answer: {:?}", e);
-            Err(warp::reject::custom(ServiceError::DatabaseQueryError(e)))
-        }
+        Err(e) => Err(warp::reject::custom(ServiceError::DatabaseQueryError(e))),
     }
 }

@@ -1,4 +1,5 @@
 use std::{io::ErrorKind, str::FromStr};
+use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
@@ -13,8 +14,14 @@ use crate::types::QuestionId;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AnswerId(pub i32);
 
+impl Display for AnswerId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 /// Represents an answer.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Answer {
     /// The id of the answer.
     pub id: AnswerId,

@@ -1,4 +1,4 @@
-use warp::{filters::BoxedFilter, Filter, Reply};
+use warp::{Filter, filters::BoxedFilter, Reply};
 
 use crate::answers::handlers;
 use crate::filters::{store_filter, with_trace};
@@ -10,7 +10,7 @@ use crate::types::QuestionId;
 /// Handler arguments:
 /// 1. `QuestionId` - Extracted from the URL path
 /// 2. `NewAnswer` - Extracted from the request body json
-pub fn add_answer(store: Store) -> BoxedFilter<(impl Reply,)> {
+pub fn add_answer(store: Store) -> BoxedFilter<(impl Reply, )> {
     store_filter(store.clone())
         .and(warp::post())
         .and(warp::path!("questions" / QuestionId / "answers"))

@@ -1,10 +1,9 @@
 //! This module contains the store, which is a simple in-memory database.
 
-use std::fmt::Display;
 use std::sync::Arc;
 
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use tokio::sync::Mutex;
+use tracing::{error, instrument, trace};
 
 use crate::api::bad_words::BadWordsAPI;
 use crate::types::{Answer, NewQuestion, Pagination, Question};
@@ -16,12 +15,18 @@ use crate::types::{Answer, NewQuestion, Pagination, Question};
 #[derive(Clone)]
 pub struct Store {
     pub connection: PgPool,
-    pub bad_words_api: Arc<Mutex<BadWordsAPI>>,
+    pub bad_words_api: Arc<BadWordsAPI>,
 }
 
 impl std::fmt::Debug for Store {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Store").field("connection", &self.connection).finish()
+    }
+}
+
+impl std::fmt::Display for Store {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
@@ -36,18 +41,24 @@ impl Store {
     ///
     /// # Panics
     /// - If the database connection cannot be established
+    #[instrument(target = "store", level = "debug", skip(db_url))]
     pub async fn new(db_url: &str) -> Self {
+        trace!("creating store object");
+
+        trace!("creating connection pool to ${db_url}");
         let db_pool = match PgPoolOptions::new().max_connections(5).connect(db_url).await {
             Ok(pool) => pool,
             Err(e) => panic!("Couldn't establish DB connection: {}", e),
         };
 
-        let api_layer_key = std::env!("API_LAYER_KEY", "API_LAYER_KEY not found");
-        let bad_words_api = BadWordsAPI::build(api_layer_key, '*').expect("Couldn't build BadWordsAPI");
+        trace!("building BadWordsAPI object");
+        const API_LAYER_KEY: &str = env!("API_LAYER_KEY", "API_LAYER_KEY not found");
+        let bad_words_api = BadWordsAPI::build(API_LAYER_KEY, '*').expect("Couldn't build BadWordsAPI");
 
+        trace!("store object created successfully");
         Store {
             connection: db_pool,
-            bad_words_api: Arc::new(Mutex::new(bad_words_api)),
+            bad_words_api: Arc::new(bad_words_api),
         }
     }
 
@@ -59,9 +70,11 @@ impl Store {
     /// # Returns
     /// - A vector of questions if the questions were found successfully.
     /// - An error if the questions could not be found.
+    #[instrument(target = "store", level = "debug", skip(self))]
     pub async fn get_questions(&self, pag: Pagination) -> Result<Vec<Question>, sqlx::Error> {
         let Pagination { offset, limit } = pag;
 
+        trace!("fetching questions from the database");
         match sqlx::query("SELECT * FROM questions LIMIT $1 OFFSET $2")
             .bind(limit)
             .bind(offset)
@@ -71,9 +84,12 @@ impl Store {
             .into_iter()
             .collect()
         {
-            Ok(questions) => Ok(questions),
+            Ok(questions) => {
+                trace!("questions fetched successfully");
+                Ok(questions)
+            }
             Err(e) => {
-                tracing::event!(target:"webdev_book", tracing::Level::ERROR, "{:?}", e);
+                error!("{e}");
                 Err(e)
             }
         }
@@ -87,14 +103,19 @@ impl Store {
     /// # Returns
     /// - A Question if the question was found successfully.
     /// - An error if the question could not be found.
-    pub async fn get_question(&self, id: i32) -> Result<Question, sqlx::Error> {
-        match sqlx::query("SELECT * FROM questions WHERE id = $1")
+    pub async fn get_question(&self, id: i32) -> Result<Option<Question>, sqlx::Error> {
+        let pg_row = sqlx::query("SELECT * FROM questions WHERE id = $1")
             .bind(id)
-            .map(Question::try_from)
-            .fetch_one(&self.connection)
-            .await?
-        {
-            Ok(question) => Ok(question),
+            .fetch_optional(&self.connection)
+            .await?;
+
+        let Some(pg_row) = pg_row else {
+            trace!("question not found");
+            return Ok(None);
+        };
+
+        match Question::try_from(pg_row) {
+            Ok(question) => Ok(Some(question)),
             Err(e) => {
                 tracing::event!(target:"webdev_book", tracing::Level::ERROR, "{:?}", e);
                 Err(e)
@@ -110,24 +131,30 @@ impl Store {
     /// # Returns
     /// - A new Question if the question was added successfully.
     /// - An error if the question could not be added.
+    #[instrument(target = "store", skip(self))]
     pub async fn add_question(&self, new_question: NewQuestion) -> Result<Question, sqlx::Error> {
+        trace!("adding a question to the database");
         let NewQuestion { title, content, tags } = new_question;
 
-        match sqlx::query(
+        let res = sqlx::query(
             "INSERT INTO questions (title, content, tags)\
             VALUES ($1, $2, $3)\
             RETURNING *",
         )
-        .bind(title)
-        .bind(content)
-        .bind(tags)
-        .map(Question::try_from)
-        .fetch_one(&self.connection)
-        .await?
-        {
-            Ok(question) => Ok(question),
+            .bind(title)
+            .bind(content)
+            .bind(tags)
+            .map(Question::try_from)
+            .fetch_one(&self.connection)
+            .await?;
+
+        match res {
+            Ok(question) => {
+                trace!("question added successfully with id={}", question.id);
+                Ok(question)
+            }
             Err(e) => {
-                tracing::event!(target:"webdev_book", tracing::Level::ERROR, "{:?}", e);
+                error!("{e}");
                 Err(e)
             }
         }
@@ -142,29 +169,35 @@ impl Store {
     /// # Returns
     /// - An updated Question if the question was updated successfully.
     /// - An error if the question could not be updated.
+    #[instrument(target = "store", skip(self))]
     pub async fn update_question(&self, question: Question, question_id: i32) -> Result<Question, sqlx::Error> {
+        trace!("updating question in the database; id={question_id}");
         let Question {
             title, content, tags, ..
         } = question;
+
         match sqlx::query(
             "UPDATE questions \
             SET title = $1,\
                 content = $2,\
-                tags = $3\
-            WHERE id = $4\
+                tags = $3 \
+            WHERE id = $4 \
             RETURNING *",
         )
-        .bind(title)
-        .bind(content)
-        .bind(tags)
-        .bind(question_id)
-        .map(Question::try_from)
-        .fetch_one(&self.connection)
-        .await?
+            .bind(title)
+            .bind(content)
+            .bind(tags)
+            .bind(question_id)
+            .map(Question::try_from)
+            .fetch_one(&self.connection)
+            .await?
         {
-            Ok(question) => Ok(question),
+            Ok(question) => {
+                trace!("question updated successfully");
+                Ok(question)
+            }
             Err(e) => {
-                tracing::event!(target:"webdev_book", tracing::Level::ERROR, "{:?}", e);
+                error!("{e}");
                 Err(e)
             }
         }
@@ -179,15 +212,25 @@ impl Store {
     /// - An Ok(true) if the question was deleted successfully.
     /// - An Ok(false) if the question was not found.
     /// - An error if the question could not be deleted.
+    #[instrument(target = "store", skip(self))]
     pub async fn delete_question(&self, question_id: i32) -> Result<bool, sqlx::Error> {
+        trace!("deleting question from the database; id={question_id}");
         match sqlx::query("DELETE FROM questions WHERE id = $1")
             .bind(question_id)
             .execute(&self.connection)
             .await
         {
-            Ok(res) => Ok(res.rows_affected() != 0),
+            Ok(res) => {
+                if res.rows_affected() == 0 {
+                    trace!("question not found");
+                    Ok(false)
+                } else {
+                    trace!("question deleted successfully");
+                    Ok(true)
+                }
+            }
             Err(e) => {
-                tracing::event!(target:"webdev_book", tracing::Level::ERROR, "hello: {:?}", e);
+                error!("{e}");
                 Err(e)
             }
         }
@@ -202,29 +245,28 @@ impl Store {
     /// # Returns
     /// - An Answer if the answer was added successfully.
     /// - An error if the answer could not be added.
+    #[instrument(target = "store", skip(self))]
     pub async fn add_answer(&self, question_id: i32, content: String) -> Result<Answer, sqlx::Error> {
+        trace!("adding an answer for the question with id={question_id}");
         match sqlx::query(
             "INSERT INTO answers (content, question_id)\
             VALUES ($1, $2)\
             RETURNING *",
         )
-        .bind(content)
-        .bind(question_id)
-        .map(Answer::try_from)
-        .fetch_one(&self.connection)
-        .await?
+            .bind(content)
+            .bind(question_id)
+            .map(Answer::try_from)
+            .fetch_one(&self.connection)
+            .await?
         {
-            Ok(answer) => Ok(answer),
+            Ok(answer) => {
+                trace!("answer added successfully with id={}", answer.id);
+                Ok(answer)
+            }
             Err(e) => {
-                tracing::event!(target:"webdev_book", tracing::Level::ERROR, "{:?}", e);
+                error!("{e}");
                 Err(e)
             }
         }
-    }
-}
-
-impl Display for Store {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
     }
 }

@@ -1,6 +1,6 @@
 //! This module contains the error handling for the API.
 
-use tracing::{instrument, warn};
+use tracing::{error, instrument, warn};
 use warp::{
     filters::{body::BodyDeserializeError, cors::CorsForbidden},
     http::StatusCode,
@@ -41,13 +41,13 @@ impl APILayerError {
 
 #[derive(thiserror::Error, Debug)]
 pub enum ServiceError {
-    #[error("invalid pagination parameters: {0}")]
+    #[error("invalid pagination parameters")]
     PaginationError(#[from] std::num::ParseIntError),
 
     #[error("question {0} not found")]
     QuestionNotFound(#[from] MissingQuestion),
 
-    #[error("database query error: {0}")]
+    #[error("cannot update, invalid data")]
     DatabaseQueryError(#[from] sqlx::Error),
 
     #[error("external API error: {0}")]
@@ -75,34 +75,21 @@ impl ServiceError {
 
 impl Reject for ServiceError {}
 
-macro_rules! tracing_event {
-    ($error:expr) => {
-        tracing::event!(target: "webdev_book", tracing::Level::ERROR, "{}", $error);
-    };
-}
+#[instrument(target = "webdev_book::errors", skip_all)]
+pub async fn return_error(rejection: Rejection) -> Result<impl Reply, Rejection> {
+    use warp::reply::with_status;
 
-#[instrument]
-pub async fn return_error(r: Rejection) -> Result<impl Reply, Rejection> {
-    if let Some(service_error) = r.find::<ServiceError>() {
-        tracing_event!(service_error);
-        Ok(warp::reply::with_status(
-            service_error.to_string(),
-            service_error.status_code(),
-        ))
-    } else if let Some(error) = r.find::<CorsForbidden>() {
-        tracing_event!(error);
-        Ok(warp::reply::with_status(error.to_string(), StatusCode::FORBIDDEN))
-    } else if let Some(error) = r.find::<BodyDeserializeError>() {
-        tracing_event!(error);
-        Ok(warp::reply::with_status(
-            error.to_string(),
-            StatusCode::UNPROCESSABLE_ENTITY,
-        ))
+    if let Some(service_error) = rejection.find::<ServiceError>() {
+        error!("{service_error}");
+        Ok(with_status(service_error.to_string(), service_error.status_code()))
+    } else if let Some(error) = rejection.find::<CorsForbidden>() {
+        error!("{error}");
+        Ok(with_status(error.to_string(), StatusCode::FORBIDDEN))
+    } else if let Some(error) = rejection.find::<BodyDeserializeError>() {
+        error!("{error}");
+        Ok(with_status(error.to_string(), StatusCode::UNPROCESSABLE_ENTITY))
     } else {
-        warn!(target: "webdev_book", "Request route not found: {:?}", r);
-        Ok(warp::reply::with_status(
-            "route not found".to_string(),
-            StatusCode::NOT_FOUND,
-        ))
+        warn!("request route not found: {rejection:?}");
+        Ok(with_status("route not found".to_string(), StatusCode::NOT_FOUND))
     }
 }

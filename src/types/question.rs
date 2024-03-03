@@ -1,5 +1,5 @@
-use std::fmt::Display;
 use std::{io::ErrorKind, str::FromStr};
+use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
