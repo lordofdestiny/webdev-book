@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set up the logger filter
     let log_filter: EnvFilter = std::env::var("RUST_LOG")
         .unwrap_or_else(|_| "webdev_book=info,warp=error".to_owned())
-        .parse()?;
+        .parse().expect("Cannot parse RUST_LOG");
 
     // Set up rolling file
     let file_appender = tracing_appender::rolling::hourly("logs", "webdev-book.log");
@@ -34,21 +34,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // This is the store that holds the questions and answers.
     let store = store::Store::new("postgres://admin:admin@localhost:5432/webdev_book").await;
 
-    sqlx::migrate!()
-        .undo(&store.clone().connection, 0)
-        .await
-        .expect("Cannot undo migrations");
-
-    sqlx::migrate!()
-        .run(&store.clone().connection)
+    sqlx::migrate!("db/migrations").run(&store.connection)
         .await
         .expect("Cannot run migrations");
 
-    // This is the filter that will be used to serve the routes.
-    // It is composed of the filters defined in the filters module.
-    // It handles the CORS headers and the error handling.
-    // It handles resources at the /questions and /answers endpoints.
-    // The error handling is done by the return_error function defined in the error module.
+    /* This is the filter that will be used to serve the routes.
+       * It is composed of the filters defined in the filters module.
+       * It handles the CORS headers and the error handling.
+       * It handles resources at the /questions and /answers endpoints.
+       * The error handling is done by the return_error function defined in the error module.
+     */
     let filter = questions::filter(&store)
         .or(answers::filter(&store))
         .with(filters::cors())
