@@ -99,6 +99,19 @@ impl ServiceError {
 
 impl Reject for ServiceError {}
 
+pub mod pg_error_codes {
+    pub const UNIQUE_VIOLATION: &str = "23505";
+    pub const CHECK_VIOLATION: &str = "23514";
+
+    pub fn default_error_message(code: &str) -> &'static str {
+        match code {
+            UNIQUE_VIOLATION => "duplicate data",
+            CHECK_VIOLATION => "invalid data: constraint violation",
+            _ => "cannot update data",
+        }
+    }
+}
+
 /// Error handler for the API
 ///
 /// This function handles the errors returned by the API, when handlers return a `Result` with an `Err`
@@ -111,8 +124,17 @@ impl Reject for ServiceError {}
 #[instrument(target = "webdev_book::errors", skip_all)]
 pub async fn return_error(rejection: Rejection) -> Result<impl Reply, Rejection> {
     use warp::reply::with_status;
-
-    if let Some(service_error) = rejection.find::<ServiceError>() {
+    if let Some(ServiceError::DatabaseQueryError(error)) = rejection.find() {
+        let message = match error {
+            sqlx::Error::Database(err) => {
+                let code = err.code().unwrap();
+                pg_error_codes::default_error_message(code.as_ref())
+            }
+            _ => "cannot update data",
+        };
+        error!("{message}");
+        Ok(with_status(message.to_string(), StatusCode::UNPROCESSABLE_ENTITY))
+    } else if let Some(service_error) = rejection.find::<ServiceError>() {
         error!("{service_error}");
         Ok(with_status(service_error.to_string(), service_error.status_code()))
     } else if let Some(error) = rejection.find::<CorsForbidden>() {

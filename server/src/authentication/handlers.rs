@@ -16,7 +16,7 @@ use crate::types::account::Account;
 pub async fn register(store: Store, account: Account) -> Result<impl Reply, Rejection> {
     let Account { id, email, password } = account;
     let hashed_password = hash_password(password.as_bytes());
-    
+
     let account = Account {
         id,
         email,

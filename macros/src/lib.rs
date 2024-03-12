@@ -5,7 +5,6 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::DeriveInput;
 
-
 /// Derive the `From<i32>` and `FromStr` traits for types that represent a database object id.
 ///
 /// This macro is intended to be used with types that represent an id of a database object. It
