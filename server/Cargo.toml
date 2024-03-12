@@ -21,3 +21,5 @@ reqwest-middleware = "0.2.4"
 reqwest-retry = "0.4.0"
 thiserror = "1.0.58"
 macros = { path = "../macros" }
+rand = "0.8.5"
+rust-argon2 = "2.1.0"

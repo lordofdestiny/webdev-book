@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use tracing::{error, event, instrument, trace};
+use tracing::{error, instrument, trace};
 
 use crate::api::bad_words::BadWordsAPI;
 use crate::error::ServiceError;
@@ -287,8 +287,7 @@ impl Store {
             Ok(_) => Ok(true),
             Err(error) => {
                 let db_error = error.as_database_error().unwrap();
-                event!(
-                    tracing::Level::ERROR,
+                error!(
                     code = db_error.code().unwrap().parse::<i32>().unwrap(),
                     db_message = db_error.message(),
                     constraint = db_error.constraint().unwrap(),

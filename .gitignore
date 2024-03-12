@@ -1,3 +1,8 @@
 /target
 /playground/**/target
 /logs
+
+/.idea/codeStyles
+/.idea/inspectionProfiles
+/.idea/dataSources.xml
+/.idea/sqldialects.xml
