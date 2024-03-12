@@ -1,5 +1,5 @@
-use warp::{Filter, Reply};
 use warp::filters::BoxedFilter;
+use warp::{Filter, Reply};
 
 use crate::store::Store;
 
@@ -10,6 +10,6 @@ mod routes;
 ///
 /// The filter combines the following filters:
 /// - `POST /questions/{id}/answers -> add_answer`p
-pub fn filter(store: &Store) -> BoxedFilter<(impl Reply, )> {
+pub fn filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
     routes::add_answer(store.clone()).boxed()
 }

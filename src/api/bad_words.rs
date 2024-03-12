@@ -46,21 +46,21 @@ impl BadWordsAPI {
 
     //noinspection DuplicatedCode
     pub fn build(api_key: &str, censor_char: char) -> Result<Self, BadWordsAPIBuildError> {
-        let retry_policy = ExponentialBackoff::builder()
-            .build_with_max_retries(3);
+        let retry_policy = ExponentialBackoff::builder().build_with_max_retries(3);
 
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert("apikey", api_key.parse()?);
 
-        let client = reqwest::Client::builder()
-            .default_headers(headers)
-            .build()?;
+        let client = reqwest::Client::builder().default_headers(headers).build()?;
 
         let client = ClientBuilder::new(client)
             .with(RetryTransientMiddleware::new_with_policy(retry_policy))
             .build();
 
-        Ok(BadWordsAPI { url: Self::url(censor_char), client })
+        Ok(BadWordsAPI {
+            url: Self::url(censor_char),
+            client,
+        })
     }
 
     #[instrument(level = "debug", skip(self))]

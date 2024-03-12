@@ -6,7 +6,11 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 use tracing::{error, instrument, trace};
 
 use crate::api::bad_words::BadWordsAPI;
-use crate::types::{Answer, NewQuestion, Pagination, Question};
+use crate::types::{
+    answer::Answer,
+    pagination::Pagination,
+    question::Question,
+};
 
 /// This struct represents the store, which is a simple in-memory database.
 ///
@@ -132,9 +136,11 @@ impl Store {
     /// - A new Question if the question was added successfully.
     /// - An error if the question could not be added.
     #[instrument(target = "store", skip(self))]
-    pub async fn add_question(&self, new_question: NewQuestion) -> Result<Question, sqlx::Error> {
+    pub async fn add_question(
+        &self,
+        Question { title, content, tags, .. }: Question,
+    ) -> Result<Question, sqlx::Error> {
         trace!("adding a question to the database");
-        let NewQuestion { title, content, tags } = new_question;
 
         let res = sqlx::query(
             "INSERT INTO questions (title, content, tags)\
@@ -150,7 +156,7 @@ impl Store {
 
         match res {
             Ok(question) => {
-                trace!("question added successfully with id={}", question.id);
+                trace!("question added successfully with id={:?}", question.id);
                 Ok(question)
             }
             Err(e) => {
@@ -260,7 +266,7 @@ impl Store {
             .await?
         {
             Ok(answer) => {
-                trace!("answer added successfully with id={}", answer.id);
+                trace!("answer added successfully with id={:?}", answer.id);
                 Ok(answer)
             }
             Err(e) => {

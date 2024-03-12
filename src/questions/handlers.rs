@@ -8,9 +8,8 @@ use warp::reply::{json, with_status};
 use crate::{
     error::ServiceError,
     store::Store,
-    types::{Pagination, Question, QuestionId},
+    types::{pagination::Pagination, question::*},
 };
-use crate::types::NewQuestion;
 
 /// Handler for `GET /questions?start={}&limit={}`
 ///
@@ -43,7 +42,7 @@ pub async fn get_questions(store: Store, params: HashMap<String, String>) -> Res
 /// Returns the question with the given id
 #[instrument(target = "webdev_book::questions", skip(store))]
 pub async fn get_question(store: Store, id: QuestionId) -> Result<impl Reply, Rejection> {
-    trace!("querying question_id = {id}");
+    trace!("querying question_id = {id:?}");
 
     let question = store
         .get_question(id.0)
@@ -61,23 +60,18 @@ pub async fn get_question(store: Store, id: QuestionId) -> Result<impl Reply, Re
 ///
 /// Creates a new question
 #[instrument(target = "webdev_book::questions", skip(store))]
-pub async fn add_question(store: Store, new_question: NewQuestion) -> Result<impl Reply, Rejection> {
+pub async fn add_question(store: Store, Question { title, content, tags, .. }: Question) -> Result<impl Reply, Rejection> {
     trace!("adding a new question");
 
-    let NewQuestion { title, content, tags } = new_question;
-
     trace!("censoring title and content...");
-    let (title, content) = tokio::try_join!(
-        store.bad_words_api.censor(title),
-        store.bad_words_api.censor(content)
-    )?;
+    let (title, content) = tokio::try_join!(store.bad_words_api.censor(title), store.bad_words_api.censor(content))?;
 
     debug!("censored title: {title}");
     debug!("censored content: {content}");
 
-    match store.add_question(NewQuestion { title, content, tags }).await {
+    match store.add_question(Question { id: None, title, content, tags }).await {
         Ok(question) => {
-            info!("created a question with question_id = {}", question.id);
+            info!("created a question with question_id = {:?}", question.id);
             Ok(with_status(json(&question), StatusCode::CREATED))
         }
         Err(e) => Err(ServiceError::DatabaseQueryError(e).into()),
@@ -88,29 +82,26 @@ pub async fn add_question(store: Store, new_question: NewQuestion) -> Result<imp
 ///
 /// Updates the question with the given id
 #[instrument(target = "webdev_book::questions", skip(store))]
-pub async fn update_question(store: Store, id: QuestionId, question: Question) -> Result<impl Reply, Rejection> {
+pub async fn update_question(store: Store, QuestionId(id): QuestionId, question: Question) -> Result<impl Reply, Rejection> {
     trace!("updating the question with question_id = {id}");
     let Question {
         title, content, tags, ..
     } = question;
 
     trace!("censoring title and content...");
-    let (title, content) = tokio::try_join!(
-        store.bad_words_api.censor(title),
-        store.bad_words_api.censor(content)
-    )?;
+    let (title, content) = tokio::try_join!(store.bad_words_api.censor(title), store.bad_words_api.censor(content))?;
 
     debug!("censored title: {title}");
     debug!("censored content: {content}");
 
     let censored_question = Question {
-        id: id.clone(),
+        id: Some(id.into()),
         title,
         content,
         tags,
     };
 
-    match store.update_question(censored_question, id.0).await {
+    match store.update_question(censored_question, id).await {
         Ok(question) => {
             info!("updated question with question_id = {id}");
             debug!(updated_question = ?question);
@@ -125,11 +116,11 @@ pub async fn update_question(store: Store, id: QuestionId, question: Question) -
 /// Deletes the question with the given id
 #[instrument(target = "webdev_book::questions", skip(store))]
 pub async fn delete_question(store: Store, id: QuestionId) -> Result<impl Reply, Rejection> {
-    trace!("deleting the question with question_id = {id}");
+    trace!("deleting the question with question_id = {id:?}");
 
     match store.delete_question(id.0).await {
         Ok(true) => {
-            info!("deleted question with question_id = {id}");
+            info!("deleted question with question_id = {id:?}");
             Ok(with_status("Question deleted", StatusCode::OK))
         }
         Ok(false) => Err(ServiceError::QuestionNotFound(id.into()).into()),

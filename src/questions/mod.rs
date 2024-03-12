@@ -1,5 +1,5 @@
-use warp::{Filter, Reply};
 use warp::filters::BoxedFilter;
+use warp::{Filter, Reply};
 
 use crate::store::Store;
 
@@ -14,7 +14,7 @@ mod routes;
 /// - `POST /questions`
 /// - `PUT /questions/{id}`
 /// - `DELETE /questions/{id}`
-pub fn filter(store: &Store) -> BoxedFilter<(impl Reply, )> {
+pub fn filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
     routes::get_questions(store.clone())
         .or(routes::get_question(store.clone()))
         .or(routes::add_question(store.clone()))

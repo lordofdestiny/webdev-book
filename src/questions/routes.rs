@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 
-use warp::{Filter, filters::BoxedFilter, Reply};
+use warp::{filters::BoxedFilter, Filter, Reply};
 
 use crate::filters::{store_filter, with_trace};
 use crate::questions::*;
 use crate::store::Store;
-use crate::types::QuestionId;
+use crate::types::question::QuestionId;
 
 /// GET /questions?start={}&limit={}
 ///
 /// Handler arguments:
 /// 1. `HashMap<String, String>` - Extracted from the query string
-pub fn get_questions(store: Store) -> BoxedFilter<(impl Reply, )> {
+pub fn get_questions(store: Store) -> BoxedFilter<(impl Reply,)> {
     store_filter(store)
         .and(warp::get())
         .and(warp::path!("questions"))
@@ -25,7 +25,7 @@ pub fn get_questions(store: Store) -> BoxedFilter<(impl Reply, )> {
 ///
 /// Handler arguments:
 /// 1. `QuestionId` - Extracted from the URL path
-pub fn get_question(store: Store) -> BoxedFilter<(impl Reply, )> {
+pub fn get_question(store: Store) -> BoxedFilter<(impl Reply,)> {
     store_filter(store)
         .and(warp::get())
         .and(warp::path!("questions" / QuestionId))
@@ -38,7 +38,7 @@ pub fn get_question(store: Store) -> BoxedFilter<(impl Reply, )> {
 ///
 /// Handler arguments:
 /// 1. `Question` - Extracted from the request body as JSON
-pub fn add_question(store: Store) -> BoxedFilter<(impl Reply, )> {
+pub fn add_question(store: Store) -> BoxedFilter<(impl Reply,)> {
     store_filter(store)
         .and(warp::post())
         .and(warp::path!("questions"))
@@ -53,7 +53,7 @@ pub fn add_question(store: Store) -> BoxedFilter<(impl Reply, )> {
 /// Handler arguments:
 /// 1. `QuestionId` - Extracted from the URL path
 /// 2. `Question` - Extracted from the request body as JSON
-pub fn update_question(store: Store) -> BoxedFilter<(impl Reply, )> {
+pub fn update_question(store: Store) -> BoxedFilter<(impl Reply,)> {
     store_filter(store)
         .and(warp::put())
         .and(warp::path!("questions" / QuestionId))
@@ -67,7 +67,7 @@ pub fn update_question(store: Store) -> BoxedFilter<(impl Reply, )> {
 ///
 /// Handler arguments:
 /// 1. `QuestionId` - Extracted from the URL path
-pub fn delete_question(store: Store) -> BoxedFilter<(impl Reply, )> {
+pub fn delete_question(store: Store) -> BoxedFilter<(impl Reply,)> {
     store_filter(store)
         .and(warp::delete())
         .and(warp::path!("questions" / QuestionId))

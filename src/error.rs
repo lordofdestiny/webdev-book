@@ -11,10 +11,10 @@ use warp::{
 };
 
 use crate::api;
-use crate::types::QuestionId;
+use crate::types::question::QuestionId;
 
 #[derive(thiserror::Error, Debug)]
-#[error("{0}")]
+#[error("{0:?}")]
 pub struct MissingQuestion(pub QuestionId);
 
 impl From<QuestionId> for MissingQuestion {
