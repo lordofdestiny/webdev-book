@@ -1,5 +1,3 @@
-use std::{io::ErrorKind, str::FromStr};
-
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
 use sqlx::Row;
@@ -21,7 +19,7 @@ pub struct Answer {
     /// The content of the answer.
     pub content: String,
     /// The id of the question this answer is associated with.
-    pub question_id: QuestionId,
+    pub question_id: Option<QuestionId>,
 }
 
 impl TryFrom<PgRow> for Answer {
@@ -31,7 +29,7 @@ impl TryFrom<PgRow> for Answer {
         Ok(Self {
             id: Some(AnswerId(row.try_get("id")?)),
             content: row.try_get("content")?,
-            question_id: QuestionId(row.try_get("question_id")?),
+            question_id: Some(QuestionId(row.try_get("question_id")?)),
         })
     }
 }

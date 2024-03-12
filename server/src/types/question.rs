@@ -1,5 +1,3 @@
-use std::{io::ErrorKind, str::FromStr};
-
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
 use sqlx::Row;

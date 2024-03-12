@@ -31,6 +31,7 @@ pub async fn get_questions(store: Store, params: HashMap<String, String>) -> Res
     match store.get_questions(pag).await {
         Ok(questions) => {
             debug!(questions_found = questions.len());
+            info!("returning all questions");
             Ok(json(&questions))
         }
         Err(e) => Err(ServiceError::DatabaseQueryError(e).into()),
@@ -51,7 +52,10 @@ pub async fn get_question(store: Store, id: QuestionId) -> Result<impl Reply, Re
     debug!(question_found = question.is_some());
 
     match question {
-        Some(question) => Ok(json(&question)),
+        Some(question) => {
+            info!("returning question with question_id = {id:?}");
+            Ok(json(&question))
+        },
         None => Err(ServiceError::QuestionNotFound(id.into()).into()),
     }
 }

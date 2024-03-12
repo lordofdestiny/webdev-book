@@ -8,7 +8,7 @@ networks:
 
 services:
   db:
-    build: db
+    build: server/db
     environment:
       POSTGRES_DB: webdev_book
       POSTGRES_USER: admin
