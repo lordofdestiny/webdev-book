@@ -12,6 +12,10 @@ mod questions;
 mod store;
 mod types;
 
+/// The main function of the application.
+///
+/// It sets up the logger, the store, the migrations, and the routes.
+/// Then it starts the server on port 3030.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set up the logger filter
@@ -35,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // This is the store that holds the questions and answers.
     let store = store::Store::new("postgres://admin:admin@localhost:5432/webdev_book").await;
 
-    sqlx::migrate!("db/migrations")
+    sqlx::migrate!()
         .run(&store.connection)
         .await
         .expect("Cannot run migrations");

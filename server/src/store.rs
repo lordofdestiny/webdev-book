@@ -1,4 +1,4 @@
-//! This module contains the store, which is a simple in-memory database.
+//! Module that implements the [Store], a shared state for the application.
 
 use std::sync::Arc;
 

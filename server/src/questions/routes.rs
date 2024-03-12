@@ -7,11 +7,15 @@ use crate::questions::*;
 use crate::store::Store;
 use crate::types::question::QuestionId;
 
-/// GET /questions?start={}&limit={}
+/// GET /questions?start={i32}&limit={i32}
 ///
-/// Handler arguments:
-/// 1. `HashMap<String, String>` - Extracted from the query string
-pub fn get_questions(store: Store) -> BoxedFilter<(impl Reply,)> {
+/// Creates a filter for a route that handles fetching a list of questions.
+///
+/// The filter parses the query parameters, and passes them to the handler.
+///
+/// # Parameters
+/// - `store` - [Store] object available to the route handler
+pub fn get_questions(store: Store) -> BoxedFilter<(impl Reply, )> {
     store_filter(store)
         .and(warp::get())
         .and(warp::path!("questions"))
@@ -23,9 +27,12 @@ pub fn get_questions(store: Store) -> BoxedFilter<(impl Reply,)> {
 
 /// GET /questions/{id}
 ///
-/// Handler arguments:
-/// 1. `QuestionId` - Extracted from the URL path
-pub fn get_question(store: Store) -> BoxedFilter<(impl Reply,)> {
+/// Creates a filter for a route that handles fetching a single question.
+/// The filter extracts the `QuestionId` from the URL path and passes it to the handler.
+///
+/// # Parameters
+/// - `store` - [Store] object available to the route handler
+pub fn get_question(store: Store) -> BoxedFilter<(impl Reply, )> {
     store_filter(store)
         .and(warp::get())
         .and(warp::path!("questions" / QuestionId))
@@ -36,9 +43,13 @@ pub fn get_question(store: Store) -> BoxedFilter<(impl Reply,)> {
 
 /// POST /questions
 ///
-/// Handler arguments:
-/// 1. `Question` - Extracted from the request body as JSON
-pub fn add_question(store: Store) -> BoxedFilter<(impl Reply,)> {
+/// Creates a filter for a route that handles creating a new question.
+///
+/// The filter extracts the `Question` from the request body as JSON and passes it to the handler.
+///
+/// # Parameters
+/// - `store` - [Store] object available to the route handler
+pub fn add_question(store: Store) -> BoxedFilter<(impl Reply, )> {
     store_filter(store)
         .and(warp::post())
         .and(warp::path!("questions"))
@@ -50,10 +61,13 @@ pub fn add_question(store: Store) -> BoxedFilter<(impl Reply,)> {
 
 /// PUT /questions/{id}
 ///
-/// Handler arguments:
-/// 1. `QuestionId` - Extracted from the URL path
-/// 2. `Question` - Extracted from the request body as JSON
-pub fn update_question(store: Store) -> BoxedFilter<(impl Reply,)> {
+/// Creates a filter for a route that handles updating a question.
+///
+/// The filter extracts the `QuestionId` from the URL path and the `Question` from the request body as JSON and passes them to the handler.
+///
+/// # Parameters
+/// - `store` - [Store] object available to the route handler
+pub fn update_question(store: Store) -> BoxedFilter<(impl Reply, )> {
     store_filter(store)
         .and(warp::put())
         .and(warp::path!("questions" / QuestionId))
@@ -65,9 +79,13 @@ pub fn update_question(store: Store) -> BoxedFilter<(impl Reply,)> {
 
 /// DELETE /questions/{id}
 ///
-/// Handler arguments:
-/// 1. `QuestionId` - Extracted from the URL path
-pub fn delete_question(store: Store) -> BoxedFilter<(impl Reply,)> {
+/// Creates a filter for a route that handles deleting a question.
+///
+/// The filter extracts the `QuestionId` from the URL path and passes it to the handler.
+///
+/// # Parameters
+/// - `store` - [Store] object available to the route handler
+pub fn delete_question(store: Store) -> BoxedFilter<(impl Reply, )> {
     store_filter(store)
         .and(warp::delete())
         .and(warp::path!("questions" / QuestionId))

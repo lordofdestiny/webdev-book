@@ -11,13 +11,24 @@ use crate::{
     types::{pagination::Pagination, question::*},
 };
 
-/// Handler for `GET /questions?start={}&limit={}`
+/// Handler for `GET /questions?start={i32}&limit={i32}`
 ///
-/// Query parameters:
-/// - offset: usize - default `0`
-/// - limit: usize - default `usize::MAX`
+/// Returns a list of questions, paginated according to the query parameters
 ///
-/// Returns a list no more than `limit` questions, starting from `offset`.
+/// Query parameters are consumed from the request and used to paginate the results.
+/// If no query parameters are provided, the default values are used.
+///
+/// The default values are:
+/// - `start` - 0
+/// - `limit` - no limit
+///
+/// Pagination logic is implemented in the [Pagination] struct.
+///
+/// # Parameters
+/// - `store` - [Store] instance
+/// - `params` - HashMap of query parameters
+///   - `start` - The starting index for the paginated results
+///   - `limit` - The maximum number of results to return
 #[instrument(target = "webdev_book::questions", skip(store))]
 pub async fn get_questions(store: Store, params: HashMap<String, String>) -> Result<impl Reply, Rejection> {
     trace!("querying questions");
@@ -40,7 +51,11 @@ pub async fn get_questions(store: Store, params: HashMap<String, String>) -> Res
 
 /// Handler for `GET /questions/{id}`
 ///
-/// Returns the question with the given id
+/// Returns the question with the given id.
+///
+/// # Parameters
+/// - `store` - [Store] instance
+/// - `id` - [QuestionId] for the question to retrieve
 #[instrument(target = "webdev_book::questions", skip(store))]
 pub async fn get_question(store: Store, id: QuestionId) -> Result<impl Reply, Rejection> {
     trace!("querying question_id = {id:?}");
@@ -63,9 +78,14 @@ pub async fn get_question(store: Store, id: QuestionId) -> Result<impl Reply, Re
 /// Handler for `POST /questions`
 ///
 /// Creates a new question
+///
+/// # Parameters
+/// - `store` - [Store] instance
+/// - `question` - [Question] object containing question details
 #[instrument(target = "webdev_book::questions", skip(store))]
-pub async fn add_question(store: Store, Question { title, content, tags, .. }: Question) -> Result<impl Reply, Rejection> {
+pub async fn add_question(store: Store, question: Question) -> Result<impl Reply, Rejection> {
     trace!("adding a new question");
+    let Question { title, content, tags, .. } = question;
 
     trace!("censoring title and content...");
     let (title, content) = tokio::try_join!(store.bad_words_api.censor(title), store.bad_words_api.censor(content))?;
@@ -85,8 +105,14 @@ pub async fn add_question(store: Store, Question { title, content, tags, .. }: Q
 /// Handler for `PUT /questions/{id}`
 ///
 /// Updates the question with the given id
+///
+/// # Parameters
+/// - `store` - [Store] instance
+/// - `question_id` - [QuestionId] for the question to update
+/// - `question` - [Question] object containing updated question details
 #[instrument(target = "webdev_book::questions", skip(store))]
-pub async fn update_question(store: Store, QuestionId(id): QuestionId, question: Question) -> Result<impl Reply, Rejection> {
+pub async fn update_question(store: Store, question_id: QuestionId, question: Question) -> Result<impl Reply, Rejection> {
+    let QuestionId(id) = question_id;
     trace!("updating the question with question_id = {id}");
     let Question {
         title, content, tags, ..
@@ -118,16 +144,23 @@ pub async fn update_question(store: Store, QuestionId(id): QuestionId, question:
 /// Handler for `DELETE /questions/{id}`
 ///
 /// Deletes the question with the given id
+///
+/// # Parameters
+/// - `store` - [Store] instance
+/// - `question_id` - [QuestionId] for the question to delete
 #[instrument(target = "webdev_book::questions", skip(store))]
-pub async fn delete_question(store: Store, id: QuestionId) -> Result<impl Reply, Rejection> {
+pub async fn delete_question(store: Store, question_id: QuestionId) -> Result<impl Reply, Rejection> {
+    let QuestionId(id) = question_id;
+
     trace!("deleting the question with question_id = {id:?}");
 
-    match store.delete_question(id.0).await {
+
+    match store.delete_question(id).await {
         Ok(true) => {
             info!("deleted question with question_id = {id:?}");
             Ok(with_status("Question deleted", StatusCode::OK))
         }
-        Ok(false) => Err(ServiceError::QuestionNotFound(id.into()).into()),
+        Ok(false) => Err(ServiceError::QuestionNotFound(question_id.into()).into()),
         Err(e) => Err(ServiceError::DatabaseQueryError(e).into()),
     }
 }

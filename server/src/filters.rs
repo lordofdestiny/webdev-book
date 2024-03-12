@@ -1,4 +1,4 @@
-//! This module contains the combined filters for the application resources.
+//! Module containing filters that are used to process requests.
 
 use warp::{filters::BoxedFilter, http::Method, Filter};
 
@@ -25,7 +25,7 @@ pub fn cors() -> warp::cors::Builder {
 ///
 /// The filter takes a store and returns a boxed filter that takes no arguments and returns the
 /// store. This is useful for handlers that need access to the store.
-pub fn store_filter(store: Store) -> BoxedFilter<(Store,)> {
+pub fn store_filter(store: Store) -> BoxedFilter<(Store, )> {
     warp::any().map(move || store.clone()).boxed()
 }
 

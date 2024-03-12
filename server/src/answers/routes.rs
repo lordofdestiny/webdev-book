@@ -7,11 +7,13 @@ use crate::types::question::QuestionId;
 
 /// POST /questions/{id}/answers
 ///
-/// Handler arguments:
-/// 1. `QuestionId` - Extracted from the URL path
-/// 2. `NewAnswer` - Extracted from the request body json
-pub fn add_answer(store: Store) -> BoxedFilter<(impl Reply,)> {
-    store_filter(store.clone())
+/// Creates a filter for a route that handles addition of new answers to a question.
+/// The filter expects a JSON payload containing the answer content.
+///
+/// # Parameters
+/// - `store` - [Store] object available to the route handler
+pub fn add_answer(store: Store) -> BoxedFilter<(impl Reply, )> {
+    store_filter(store)
         .and(warp::post())
         .and(warp::path!("questions" / QuestionId / "answers"))
         .and(warp::body::json())
