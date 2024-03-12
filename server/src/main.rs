@@ -1,7 +1,7 @@
 #![warn(clippy::all)]
 
+use tracing_subscriber::{EnvFilter, fmt, Registry};
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::{fmt, EnvFilter, Registry};
 use warp::Filter;
 
 mod answers;
@@ -51,7 +51,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
      * It handles resources at the /questions and /answers endpoints.
      * The error handling is done by the return_error function defined in the error module.
      */
-    let filter = questions::filter(&store)
+    let filter = authentication::filter(&store)
+        .or(questions::filter(&store))
         .or(answers::filter(&store))
         .with(filters::cors())
         .with(warp::trace::request())
