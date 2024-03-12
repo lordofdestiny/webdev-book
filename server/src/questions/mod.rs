@@ -24,7 +24,7 @@ mod routes;
 ///
 /// # Parameters
 /// - `store` - The [Store] to use for handling requests.
-pub fn filter(store: &Store) -> BoxedFilter<(impl Reply, )> {
+pub fn filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
     routes::get_questions(store.clone())
         .or(routes::get_question(store.clone()))
         .or(routes::add_question(store.clone()))

@@ -3,14 +3,12 @@
 use std::sync::Arc;
 
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use tracing::{error, instrument, trace};
+use tracing::{error, event, instrument, trace};
 
 use crate::api::bad_words::BadWordsAPI;
-use crate::types::{
-    answer::Answer,
-    pagination::Pagination,
-    question::Question,
-};
+use crate::error::ServiceError;
+use crate::types::account::Account;
+use crate::types::{answer::Answer, pagination::Pagination, question::Question};
 
 /// This struct represents the store, which is a simple in-memory database.
 ///
@@ -75,7 +73,7 @@ impl Store {
     /// - A vector of questions if the questions were found successfully.
     /// - An error if the questions could not be found.
     #[instrument(target = "store", level = "debug", skip(self))]
-    pub async fn get_questions(&self, pag: Pagination) -> Result<Vec<Question>, sqlx::Error> {
+    pub async fn get_questions(&self, pag: Pagination) -> Result<Vec<Question>, ServiceError> {
         let Pagination { offset, limit } = pag;
 
         trace!("fetching questions from the database");
@@ -92,9 +90,9 @@ impl Store {
                 trace!("questions fetched successfully");
                 Ok(questions)
             }
-            Err(e) => {
-                error!("{e}");
-                Err(e)
+            Err(error) => {
+                error!("{error}");
+                Err(ServiceError::DatabaseQueryError(error))
             }
         }
     }
@@ -107,7 +105,7 @@ impl Store {
     /// # Returns
     /// - A Question if the question was found successfully.
     /// - An error if the question could not be found.
-    pub async fn get_question(&self, id: i32) -> Result<Option<Question>, sqlx::Error> {
+    pub async fn get_question(&self, id: i32) -> Result<Option<Question>, ServiceError> {
         let pg_row = sqlx::query("SELECT * FROM questions WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.connection)
@@ -120,9 +118,9 @@ impl Store {
 
         match Question::try_from(pg_row) {
             Ok(question) => Ok(Some(question)),
-            Err(e) => {
-                tracing::event!(target:"webdev_book", tracing::Level::ERROR, "{:?}", e);
-                Err(e)
+            Err(error) => {
+                tracing::event!(target:"webdev_book", tracing::Level::ERROR, "{:?}", error);
+                Err(ServiceError::DatabaseQueryError(error))
             }
         }
     }
@@ -138,8 +136,10 @@ impl Store {
     #[instrument(target = "store", skip(self))]
     pub async fn add_question(
         &self,
-        Question { title, content, tags, .. }: Question,
-    ) -> Result<Question, sqlx::Error> {
+        Question {
+            title, content, tags, ..
+        }: Question,
+    ) -> Result<Question, ServiceError> {
         trace!("adding a question to the database");
 
         let res = sqlx::query(
@@ -147,21 +147,21 @@ impl Store {
             VALUES ($1, $2, $3)\
             RETURNING *",
         )
-            .bind(title)
-            .bind(content)
-            .bind(tags)
-            .map(Question::try_from)
-            .fetch_one(&self.connection)
-            .await?;
+        .bind(title)
+        .bind(content)
+        .bind(tags)
+        .map(Question::try_from)
+        .fetch_one(&self.connection)
+        .await?;
 
         match res {
             Ok(question) => {
                 trace!("question added successfully with id={:?}", question.id);
                 Ok(question)
             }
-            Err(e) => {
-                error!("{e}");
-                Err(e)
+            Err(error) => {
+                error!("{error}");
+                Err(ServiceError::DatabaseQueryError(error))
             }
         }
     }
@@ -176,7 +176,7 @@ impl Store {
     /// - An updated Question if the question was updated successfully.
     /// - An error if the question could not be updated.
     #[instrument(target = "store", skip(self))]
-    pub async fn update_question(&self, question: Question, question_id: i32) -> Result<Question, sqlx::Error> {
+    pub async fn update_question(&self, question: Question, question_id: i32) -> Result<Question, ServiceError> {
         trace!("updating question in the database; id={question_id}");
         let Question {
             title, content, tags, ..
@@ -190,21 +190,21 @@ impl Store {
             WHERE id = $4 \
             RETURNING *",
         )
-            .bind(title)
-            .bind(content)
-            .bind(tags)
-            .bind(question_id)
-            .map(Question::try_from)
-            .fetch_one(&self.connection)
-            .await?
+        .bind(title)
+        .bind(content)
+        .bind(tags)
+        .bind(question_id)
+        .map(Question::try_from)
+        .fetch_one(&self.connection)
+        .await?
         {
             Ok(question) => {
                 trace!("question updated successfully");
                 Ok(question)
             }
-            Err(e) => {
-                error!("{e}");
-                Err(e)
+            Err(error) => {
+                error!("{error}");
+                Err(ServiceError::DatabaseQueryError(error))
             }
         }
     }
@@ -219,7 +219,7 @@ impl Store {
     /// - An Ok(false) if the question was not found.
     /// - An error if the question could not be deleted.
     #[instrument(target = "store", skip(self))]
-    pub async fn delete_question(&self, question_id: i32) -> Result<bool, sqlx::Error> {
+    pub async fn delete_question(&self, question_id: i32) -> Result<bool, ServiceError> {
         trace!("deleting question from the database; id={question_id}");
         match sqlx::query("DELETE FROM questions WHERE id = $1")
             .bind(question_id)
@@ -235,9 +235,9 @@ impl Store {
                     Ok(true)
                 }
             }
-            Err(e) => {
-                error!("{e}");
-                Err(e)
+            Err(error) => {
+                error!("{error}");
+                Err(ServiceError::DatabaseQueryError(error))
             }
         }
     }
@@ -252,26 +252,48 @@ impl Store {
     /// - An Answer if the answer was added successfully.
     /// - An error if the answer could not be added.
     #[instrument(target = "store", skip(self))]
-    pub async fn add_answer(&self, question_id: i32, content: String) -> Result<Answer, sqlx::Error> {
+    pub async fn add_answer(&self, question_id: i32, content: String) -> Result<Answer, ServiceError> {
         trace!("adding an answer for the question with id={question_id}");
         match sqlx::query(
             "INSERT INTO answers (content, question_id)\
             VALUES ($1, $2)\
             RETURNING *",
         )
-            .bind(content)
-            .bind(question_id)
-            .map(Answer::try_from)
-            .fetch_one(&self.connection)
-            .await?
+        .bind(content)
+        .bind(question_id)
+        .map(Answer::try_from)
+        .fetch_one(&self.connection)
+        .await?
         {
             Ok(answer) => {
                 trace!("answer added successfully with id={:?}", answer.id);
                 Ok(answer)
             }
-            Err(e) => {
-                error!("{e}");
-                Err(e)
+            Err(error) => {
+                error!("{error}");
+                Err(ServiceError::DatabaseQueryError(error))
+            }
+        }
+    }
+
+    #[instrument(target = "store", skip(self))]
+    pub async fn add_account(self, account: Account) -> Result<bool, ServiceError> {
+        match sqlx::query("INSERT INTO accounts (email, password) VALUES ($1, $2)")
+            .bind(account.email)
+            .bind(account.password)
+            .execute(&self.connection)
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(error) => {
+                let db_error = error.as_database_error().unwrap();
+                event!(
+                    tracing::Level::ERROR,
+                    code = db_error.code().unwrap().parse::<i32>().unwrap(),
+                    db_message = db_error.message(),
+                    constraint = db_error.constraint().unwrap(),
+                );
+                Err(ServiceError::DatabaseQueryError(error))
             }
         }
     }

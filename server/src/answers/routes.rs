@@ -12,7 +12,7 @@ use crate::types::question::QuestionId;
 ///
 /// # Parameters
 /// - `store` - [Store] object available to the route handler
-pub fn add_answer(store: Store) -> BoxedFilter<(impl Reply, )> {
+pub fn add_answer(store: Store) -> BoxedFilter<(impl Reply,)> {
     store_filter(store)
         .and(warp::post())
         .and(warp::path!("questions" / QuestionId / "answers"))

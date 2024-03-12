@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use macros::DbObjectId;
+use serde::{Deserialize, Serialize};
 
 /// Represents an answer id.
 ///
@@ -13,4 +13,3 @@ pub struct Account {
     pub email: String,
     pub password: String,
 }
-

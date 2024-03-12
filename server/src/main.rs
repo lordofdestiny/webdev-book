@@ -6,6 +6,7 @@ use warp::Filter;
 
 mod answers;
 mod api;
+mod authentication;
 mod error;
 mod filters;
 mod questions;

@@ -3,9 +3,9 @@ use warp::http::StatusCode;
 use warp::reply::with_status;
 use warp::{Rejection, Reply};
 
-use crate::types::question::QuestionId;
-use crate::{error::ServiceError, store::Store};
+use crate::store::Store;
 use crate::types::answer::Answer;
+use crate::types::question::QuestionId;
 
 /// Handler for `POST /questions/{id}/answers`
 ///
@@ -31,6 +31,6 @@ pub async fn add_answer(store: Store, question_id: QuestionId, new_answer: Answe
             debug!("created the answer: {:?}", answer);
             Ok(with_status("Answer created", StatusCode::CREATED))
         }
-        Err(e) => Err(warp::reject::custom(ServiceError::DatabaseQueryError(e))),
+        Err(error) => Err(warp::reject::custom(error)),
     }
 }

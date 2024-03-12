@@ -1,7 +1,7 @@
+use macros::DbObjectId;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
 use sqlx::Row;
-use macros::DbObjectId;
 
 use crate::types::question::QuestionId;
 

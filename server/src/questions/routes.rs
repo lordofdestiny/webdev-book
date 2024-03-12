@@ -15,7 +15,7 @@ use crate::types::question::QuestionId;
 ///
 /// # Parameters
 /// - `store` - [Store] object available to the route handler
-pub fn get_questions(store: Store) -> BoxedFilter<(impl Reply, )> {
+pub fn get_questions(store: Store) -> BoxedFilter<(impl Reply,)> {
     store_filter(store)
         .and(warp::get())
         .and(warp::path!("questions"))
@@ -32,7 +32,7 @@ pub fn get_questions(store: Store) -> BoxedFilter<(impl Reply, )> {
 ///
 /// # Parameters
 /// - `store` - [Store] object available to the route handler
-pub fn get_question(store: Store) -> BoxedFilter<(impl Reply, )> {
+pub fn get_question(store: Store) -> BoxedFilter<(impl Reply,)> {
     store_filter(store)
         .and(warp::get())
         .and(warp::path!("questions" / QuestionId))
@@ -49,7 +49,7 @@ pub fn get_question(store: Store) -> BoxedFilter<(impl Reply, )> {
 ///
 /// # Parameters
 /// - `store` - [Store] object available to the route handler
-pub fn add_question(store: Store) -> BoxedFilter<(impl Reply, )> {
+pub fn add_question(store: Store) -> BoxedFilter<(impl Reply,)> {
     store_filter(store)
         .and(warp::post())
         .and(warp::path!("questions"))
@@ -67,7 +67,7 @@ pub fn add_question(store: Store) -> BoxedFilter<(impl Reply, )> {
 ///
 /// # Parameters
 /// - `store` - [Store] object available to the route handler
-pub fn update_question(store: Store) -> BoxedFilter<(impl Reply, )> {
+pub fn update_question(store: Store) -> BoxedFilter<(impl Reply,)> {
     store_filter(store)
         .and(warp::put())
         .and(warp::path!("questions" / QuestionId))
@@ -85,7 +85,7 @@ pub fn update_question(store: Store) -> BoxedFilter<(impl Reply, )> {
 ///
 /// # Parameters
 /// - `store` - [Store] object available to the route handler
-pub fn delete_question(store: Store) -> BoxedFilter<(impl Reply, )> {
+pub fn delete_question(store: Store) -> BoxedFilter<(impl Reply,)> {
     store_filter(store)
         .and(warp::delete())
         .and(warp::path!("questions" / QuestionId))

@@ -1,7 +1,7 @@
+use macros::DbObjectId;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
 use sqlx::Row;
-use macros::DbObjectId;
 
 /// Represents a question id.
 ///
@@ -23,7 +23,6 @@ pub struct Question {
     /// The tags of the question.
     pub tags: Option<Vec<String>>,
 }
-
 
 impl TryFrom<PgRow> for Question {
     type Error = sqlx::Error;
