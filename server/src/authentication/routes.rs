@@ -19,3 +19,18 @@ pub fn register(store: Store) -> BoxedFilter<(impl Reply,)> {
         .and_then(handlers::register)
         .boxed()
 }
+
+/// POST /login
+///
+/// Creates a filter for a route that handles user login.
+///
+/// # Parameters
+/// - `store` - [Store] object available to the route handler
+pub fn login(store: Store) -> BoxedFilter<(impl Reply,)> {
+    store_filter(store)
+        .and(warp::post())
+        .and(warp::path("login"))
+        .and(warp::body::json())
+        .and_then(handlers::login)
+        .boxed()
+}

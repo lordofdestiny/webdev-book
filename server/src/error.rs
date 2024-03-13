@@ -60,6 +60,9 @@ pub enum ServiceError {
     /// Error for invalid database queries
     #[error("cannot update, invalid data")]
     DatabaseQueryError(#[from] sqlx::Error),
+    /// Error returned by the Argon2 hashing library
+    #[error("argon2 error")]
+    ArgonLibraryError(#[from] argon2::Error),
     /// Error for Reqwest errors
     #[error("external API error:")]
     ReqwestAPIError(#[from] ReqwestError),
@@ -72,6 +75,8 @@ pub enum ServiceError {
     /// Error for server errors
     #[error("external server error")]
     ServerError(APILayerError),
+    #[error("wrong credentials combination")]
+    WrongPassword,
 }
 
 impl ServiceError {
@@ -85,14 +90,17 @@ impl ServiceError {
     ///     - `StatusCode::NOT_FOUND`: For `QuestionNotFound`
     ///     - `StatusCode::INTERNAL_SERVER_ERROR`: For all other errors
     pub fn status_code(&self) -> StatusCode {
+        use ServiceError::*;
         match self {
-            ServiceError::PaginationError(_) => StatusCode::BAD_REQUEST,
-            ServiceError::QuestionNotFound(_) => StatusCode::NOT_FOUND,
-            ServiceError::DatabaseQueryError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ServiceError::ReqwestAPIError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ServiceError::MiddlewareReqwestAPIError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ServiceError::ClientError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ServiceError::ServerError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            PaginationError(_) => StatusCode::BAD_REQUEST,
+            QuestionNotFound(_) => StatusCode::NOT_FOUND,
+            DatabaseQueryError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ArgonLibraryError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ReqwestAPIError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            MiddlewareReqwestAPIError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ClientError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ServerError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            WrongPassword => StatusCode::UNAUTHORIZED,
         }
     }
 }

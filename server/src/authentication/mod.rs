@@ -1,6 +1,6 @@
 //! Module for authentication
 use warp::filters::BoxedFilter;
-use warp::Reply;
+use warp::{Filter, Reply};
 
 use crate::store::Store;
 
@@ -17,5 +17,5 @@ mod routes;
 /// # Parameters
 /// - `store` - The [Store] to use for handling requests.
 pub fn filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
-    routes::register(store.clone())
+    routes::register(store.clone()).or(routes::login(store.clone())).boxed()
 }

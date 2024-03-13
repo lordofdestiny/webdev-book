@@ -276,6 +276,12 @@ impl Store {
         }
     }
 
+    /// This function creates a new account in the table `accounts`.
+    ///
+    /// It is expected that the password is already hashed before calling this function.
+    ///
+    /// # Arguments
+    /// - `account`: An `Account` struct that contains the email and password of the account.
     #[instrument(target = "store", skip(self))]
     pub async fn add_account(self, account: Account) -> Result<bool, ServiceError> {
         match sqlx::query("INSERT INTO accounts (email, password) VALUES ($1, $2)")
@@ -292,6 +298,29 @@ impl Store {
                     db_message = db_error.message(),
                     constraint = db_error.constraint().unwrap(),
                 );
+                Err(ServiceError::DatabaseQueryError(error))
+            }
+        }
+    }
+
+    /// Get an account from the table `accounts` by its email.
+    ///
+    /// # Arguments
+    /// - `email`: A string slice that contains the email of the account.
+    ///
+    /// # Returns
+    /// - An `Account` if the account was found successfully.
+    #[instrument(target = "store", skip(self))]
+    pub async fn get_account(&self, email: &str) -> Result<Account, ServiceError> {
+        let pg_row = sqlx::query("SELECT * FROM accounts WHERE email = $1")
+            .bind(email)
+            .fetch_one(&self.connection)
+            .await?;
+
+        match Account::try_from(pg_row) {
+            Ok(account) => Ok(account),
+            Err(error) => {
+                tracing::event!(target:"webdev_book", tracing::Level::ERROR, "{:?}", error);
                 Err(ServiceError::DatabaseQueryError(error))
             }
         }

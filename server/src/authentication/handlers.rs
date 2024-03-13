@@ -1,11 +1,29 @@
 use argon2::Config;
 use rand::random;
 use warp::http::StatusCode;
-use warp::reply::with_status;
+use warp::reply::{json, with_status};
 use warp::{Rejection, Reply};
 
+use crate::error::ServiceError;
 use crate::store::Store;
-use crate::types::account::Account;
+use crate::types::account::{Account, AccountId};
+
+use paseto::v2::local_paseto;
+
+/// Hashes a password using Argon2.
+///
+/// Hashes a password using Argon2 and returns the hash as a string.
+/// Hashing is done using a random salt and the default Argon2 configuration.
+///
+/// Salt is generated using the `rand` crate. Size of the salt is 32 bytes.
+///
+/// # Parameters
+/// - `password` - The password to hash.
+pub fn hash_password(password: &[u8]) -> String {
+    let salt = random::<[u8; 32]>();
+    let config = Config::default();
+    argon2::hash_encoded(password, &salt, &config).unwrap()
+}
 
 /// Handler for the `POST /register` route.
 ///
@@ -29,8 +47,31 @@ pub async fn register(store: Store, account: Account) -> Result<impl Reply, Reje
     }
 }
 
-pub fn hash_password(password: &[u8]) -> String {
-    let salt = random::<[u8; 32]>();
-    let config = Config::default();
-    argon2::hash_encoded(password, &salt, &config).unwrap()
+fn verify_password(hashed: &str, password: &str) -> Result<bool, argon2::Error> {
+    argon2::verify_encoded(hashed, password.as_bytes())
+}
+
+fn issue_token(account_id: AccountId) -> String {
+    let state = serde_json::to_string(&account_id).expect("failed to serialize state");
+
+    local_paseto(&state, None, "RANDOM WORDS WINTER MACINTOSH PC".as_bytes()).expect("failed to issue token")
+}
+
+/// Handler for the `POST /login` route.
+///
+/// This handler is used to log in an account.
+///
+/// # Parameters
+/// - `store` - The [Store] to use for handling requests.
+/// - `login` - The login details.
+pub async fn login(store: Store, login: Account) -> Result<impl Reply, Rejection> {
+    let Account { email, password, .. } = login;
+    match store.get_account(&email).await {
+        Ok(account) => match verify_password(&account.password, &password) {
+            Ok(true) => Ok(json(&issue_token(account.id.expect("Account id not found")))),
+            Ok(false) => Err(warp::reject::custom(ServiceError::WrongPassword)),
+            Err(error) => Err(warp::reject::custom(ServiceError::ArgonLibraryError(error))),
+        },
+        Err(error) => Err(warp::reject::custom(error)),
+    }
 }
