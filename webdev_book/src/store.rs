@@ -3,11 +3,13 @@
 use std::sync::Arc;
 
 use sqlx::postgres::{PgPool, PgPoolOptions};
+use sqlx::Row;
 use tracing::{error, info, instrument, trace};
 
 use crate::api::bad_words::BadWordsAPI;
 use crate::error::ServiceError;
-use crate::types::authentication::Account;
+use crate::types::authentication::{Account, AccountId};
+use crate::types::question::QuestionId;
 use crate::types::{answer::Answer, pagination::Pagination, question::Question};
 
 /// This struct represents the store, which is a simple in-memory database.
@@ -108,9 +110,11 @@ impl Store {
     /// # Returns
     /// - A Question if the question was found successfully.
     /// - An error if the question could not be found.
-    pub async fn get_question(&self, id: i32) -> Result<Option<Question>, ServiceError> {
+    pub async fn get_question(&self, question_id: QuestionId) -> Result<Option<Question>, ServiceError> {
+        let QuestionId(question_id) = question_id;
+
         let pg_row = sqlx::query("SELECT * FROM questions WHERE id = $1")
-            .bind(id)
+            .bind(question_id)
             .fetch_optional(&self.connection)
             .await?;
 
@@ -128,6 +132,29 @@ impl Store {
         }
     }
 
+    pub async fn is_question_owner(
+        &self,
+        question_id: QuestionId,
+        account_id: AccountId,
+    ) -> Result<bool, ServiceError> {
+        let QuestionId(q_id) = question_id;
+        let AccountId(acc_id) = account_id;
+
+        match sqlx::query("SELECT * FROM questions WHERE id = $1")
+            .bind(q_id)
+            .bind(acc_id)
+            .fetch_optional(&self.connection)
+            .await
+        {
+            Ok(Some(row)) => Ok({
+                let id: i32 = row.try_get("account_id")?;
+                acc_id == id
+            }),
+            Ok(None) => Err(ServiceError::QuestionNotFound(question_id.into())),
+            Err(error) => Err(ServiceError::DatabaseQueryError(error)),
+        }
+    }
+
     /// This function will insert a question into the table `questions`
     ///
     /// # Arguments
@@ -137,22 +164,22 @@ impl Store {
     /// - A new Question if the question was added successfully.
     /// - An error if the question could not be added.
     #[instrument(target = "store", skip(self))]
-    pub async fn add_question(
-        &self,
-        Question {
-            title, content, tags, ..
-        }: Question,
-    ) -> Result<Question, ServiceError> {
+    pub async fn add_question(&self, account_id: AccountId, question: Question) -> Result<Question, ServiceError> {
         trace!("adding a question to the database");
+        let Question {
+            title, content, tags, ..
+        } = question;
+        let AccountId(account_id) = account_id;
 
         let res = sqlx::query(
-            "INSERT INTO questions (title, content, tags)\
-            VALUES ($1, $2, $3)\
+            "INSERT INTO questions (title, content, tags, account_id)\
+            VALUES ($1, $2, $3, $4)\
             RETURNING *",
         )
         .bind(title)
         .bind(content)
         .bind(tags)
+        .bind(account_id)
         .map(Question::try_from)
         .fetch_one(&self.connection)
         .await?;
@@ -179,7 +206,14 @@ impl Store {
     /// - An updated Question if the question was updated successfully.
     /// - An error if the question could not be updated.
     #[instrument(target = "store", skip(self))]
-    pub async fn update_question(&self, question: Question, question_id: i32) -> Result<Question, ServiceError> {
+    pub async fn update_question(
+        &self,
+        account_id: AccountId,
+        question: Question,
+        question_id: QuestionId,
+    ) -> Result<Question, ServiceError> {
+        let QuestionId(question_id) = question_id;
+        let AccountId(account_id) = account_id;
         trace!("updating question in the database; id={question_id}");
         let Question {
             title, content, tags, ..
@@ -187,16 +221,15 @@ impl Store {
 
         match sqlx::query(
             "UPDATE questions \
-            SET title = $1,\
-                content = $2,\
-                tags = $3 \
-            WHERE id = $4 \
+            SET title = $1, content = $2, tags = $3 \
+            WHERE id = $4 AND account_id = $5 \
             RETURNING *",
         )
         .bind(title)
         .bind(content)
         .bind(tags)
         .bind(question_id)
+        .bind(account_id)
         .map(Question::try_from)
         .fetch_one(&self.connection)
         .await?
@@ -222,10 +255,13 @@ impl Store {
     /// - An Ok(false) if the question was not found.
     /// - An error if the question could not be deleted.
     #[instrument(target = "store", skip(self))]
-    pub async fn delete_question(&self, question_id: i32) -> Result<bool, ServiceError> {
+    pub async fn delete_question(&self, account_id: AccountId, question_id: QuestionId) -> Result<bool, ServiceError> {
+        let QuestionId(question_id) = question_id;
+        let AccountId(account_id) = account_id;
         trace!("deleting question from the database; id={question_id}");
-        match sqlx::query("DELETE FROM questions WHERE id = $1")
+        match sqlx::query("DELETE FROM questions WHERE id = $1 AND account_id = $2")
             .bind(question_id)
+            .bind(account_id)
             .execute(&self.connection)
             .await
         {
@@ -255,15 +291,23 @@ impl Store {
     /// - An Answer if the answer was added successfully.
     /// - An error if the answer could not be added.
     #[instrument(target = "store", skip(self))]
-    pub async fn add_answer(&self, question_id: i32, content: String) -> Result<Answer, ServiceError> {
+    pub async fn add_answer(
+        &self,
+        account_id: AccountId,
+        question_id: QuestionId,
+        content: String,
+    ) -> Result<Answer, ServiceError> {
+        let QuestionId(question_id) = question_id;
+        let AccountId(account_id) = account_id;
         trace!("adding an answer for the question with id={question_id}");
         match sqlx::query(
-            "INSERT INTO answers (content, question_id)\
-            VALUES ($1, $2)\
+            "INSERT INTO answers (content, question_id, account_id)\
+            VALUES ($1, $2, $3) \
             RETURNING *",
         )
         .bind(content)
         .bind(question_id)
+        .bind(account_id)
         .map(Answer::try_from)
         .fetch_one(&self.connection)
         .await?

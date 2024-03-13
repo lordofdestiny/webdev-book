@@ -8,7 +8,7 @@ use crate::types::question::QuestionId;
 /// Represents an answer id.
 ///
 /// `AnswerId` is a wrapper around an i32. It represents the id of an answer.
-#[derive(DbObjectId, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(DbObjectId, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AnswerId(pub i32);
 
 /// Represents an answer.

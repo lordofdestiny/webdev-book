@@ -1,5 +1,5 @@
 [alias]
-doc = "doc --no-deps"
+docs = "doc --no-deps"
 
 [env]
 RUST_LOG = "webdev_book=info,warp=error"

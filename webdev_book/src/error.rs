@@ -7,7 +7,7 @@ use tracing::{error, instrument, warn};
 use warp::{
     filters::{body::BodyDeserializeError, cors::CorsForbidden},
     http::StatusCode,
-    reject::Reject,
+    reject::{MissingHeader, Reject},
     Rejection, Reply,
 };
 
@@ -78,6 +78,10 @@ pub enum ServiceError {
     ServerError(APILayerError),
     #[error("wrong credentials combination")]
     WrongPassword,
+    #[error("auth token could not be decyphered")]
+    CannotDecryptToken,
+    #[error("unauthorized, no premission to modify the resource")]
+    Unauthorized,
 }
 
 impl ServiceError {
@@ -102,6 +106,8 @@ impl ServiceError {
             ClientError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ServerError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             WrongPassword => StatusCode::UNAUTHORIZED,
+            CannotDecryptToken => StatusCode::UNAUTHORIZED,
+            Unauthorized => StatusCode::UNAUTHORIZED,
         }
     }
 }
@@ -151,6 +157,12 @@ pub async fn return_error(rejection: Rejection) -> Result<impl Reply, Rejection>
     } else if let Some(service_error) = rejection.find::<ServiceError>() {
         error!("{service_error}");
         Ok(with_status(service_error.to_string(), service_error.status_code()))
+    } else if let Some(error) = rejection.find::<MissingHeader>() {
+        error!("{error}");
+        Ok(with_status(
+            format!("missing request header: \"{}\"", error.name()),
+            StatusCode::BAD_REQUEST,
+        ))
     } else if let Some(error) = rejection.find::<CorsForbidden>() {
         error!("{error}");
         Ok(with_status(error.to_string(), StatusCode::FORBIDDEN))

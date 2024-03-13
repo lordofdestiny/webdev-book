@@ -7,15 +7,15 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug executable 'webdev-book'",
+      "name": "Debug executable 'webdev_book'",
       "cargo": {
         "args": [
           "build",
-          "--bin=webdev-book",
-          "--package=webdev-book"
+          "--bin=webdev_book",
+          "--package=webdev_book"
         ],
         "filter": {
-          "name": "webdev-book",
+          "name": "webdev_book",
           "kind": "bin"
         }
       },
@@ -25,16 +25,16 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug unit tests in executable 'webdev-book'",
+      "name": "Debug unit tests in executable 'webdev_book'",
       "cargo": {
         "args": [
           "test",
           "--no-run",
-          "--bin=webdev-book",
-          "--package=webdev-book"
+          "--bin=webdev_book",
+          "--package=webdev_book"
         ],
         "filter": {
-          "name": "webdev-book",
+          "name": "webdev_book",
           "kind": "bin"
         }
       },

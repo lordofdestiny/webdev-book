@@ -6,12 +6,12 @@ use sqlx::Row;
 /// Represents a question id.
 ///
 /// `QuestionId` is a wrapper around an i32. It represents the id of a question.
-#[derive(DbObjectId, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(DbObjectId, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct QuestionId(pub i32);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
 /// Represents a question.
 ///
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Question {
     /// The id of the question. It is an `Option<QuestionId>` because we want to be able to
     /// create a question by parsing a JSON object that doesn't have an id field.

@@ -1,1 +1,1 @@
-ALTER TABLE answers ADD COLUMN account_id serial;
+ALTER TABLE answers ADD COLUMN account_id serial NOT NULL;

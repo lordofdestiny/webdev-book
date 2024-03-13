@@ -8,7 +8,9 @@ use warp::{Filter, Reply};
 
 use crate::store::Store;
 
+/// Handlers for the `Questions` resource.
 mod handlers;
+/// Routes for the `Questions` resource.
 mod routes;
 
 /// Filter for `Questions` module

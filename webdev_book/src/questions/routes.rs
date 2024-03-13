@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use warp::{filters::BoxedFilter, Filter, Reply};
 
 use crate::filters::{store_filter, with_trace};
-use crate::questions::*;
 use crate::store::Store;
 use crate::types::question::QuestionId;
+use crate::{authentication, questions::*};
 
 /// GET /questions?start={i32}&limit={i32}
 ///
@@ -54,6 +54,7 @@ pub fn add_question(store: Store) -> BoxedFilter<(impl Reply,)> {
         .and(warp::post())
         .and(warp::path!("questions"))
         .and(warp::body::json())
+        .and(authentication::auth())
         .and_then(handlers::add_question)
         .with(with_trace!("add_question request"))
         .boxed()
@@ -72,6 +73,7 @@ pub fn update_question(store: Store) -> BoxedFilter<(impl Reply,)> {
         .and(warp::put())
         .and(warp::path!("questions" / QuestionId))
         .and(warp::body::json())
+        .and(authentication::auth())
         .and_then(handlers::update_question)
         .with(with_trace!("update_questions request"))
         .boxed()
@@ -89,6 +91,7 @@ pub fn delete_question(store: Store) -> BoxedFilter<(impl Reply,)> {
     store_filter(store)
         .and(warp::delete())
         .and(warp::path!("questions" / QuestionId))
+        .and(authentication::auth())
         .and_then(handlers::delete_question)
         .with(with_trace!("delete_question request"))
         .boxed()

@@ -1,1 +1,1 @@
-ALTER TABLE questions ADD COLUMN account_id serial;
+ALTER TABLE questions ADD COLUMN account_id serial NOT NULL;

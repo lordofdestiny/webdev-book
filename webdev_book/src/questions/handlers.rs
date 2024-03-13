@@ -5,6 +5,7 @@ use warp::http::StatusCode;
 use warp::reply::{json, with_status};
 use warp::{Rejection, Reply};
 
+use crate::types::authentication::Session;
 use crate::{
     error::ServiceError,
     store::Store,
@@ -57,18 +58,18 @@ pub async fn get_questions(store: Store, params: HashMap<String, String>) -> Res
 /// - `store` - [Store] instance
 /// - `id` - [QuestionId] for the question to retrieve
 #[instrument(target = "webdev_book::questions", skip(store))]
-pub async fn get_question(store: Store, id: QuestionId) -> Result<impl Reply, Rejection> {
-    trace!("querying question_id = {id:?}");
+pub async fn get_question(store: Store, question_id: QuestionId) -> Result<impl Reply, Rejection> {
+    trace!("querying question_id = {question_id:?}");
 
-    let question = store.get_question(id.0).await?;
+    let question = store.get_question(question_id).await?;
     debug!(question_found = question.is_some());
 
     match question {
         Some(question) => {
-            info!("returning question with question_id = {id:?}");
+            info!("returning question with question_id = {question_id:?}");
             Ok(json(&question))
         }
-        None => Err(ServiceError::QuestionNotFound(id.into()).into()),
+        None => Err(ServiceError::QuestionNotFound(question_id.into()).into()),
     }
 }
 
@@ -80,7 +81,7 @@ pub async fn get_question(store: Store, id: QuestionId) -> Result<impl Reply, Re
 /// - `store` - [Store] instance
 /// - `question` - [Question] object containing question details
 #[instrument(target = "webdev_book::questions", skip(store))]
-pub async fn add_question(store: Store, question: Question) -> Result<impl Reply, Rejection> {
+pub async fn add_question(store: Store, question: Question, session: Session) -> Result<impl Reply, Rejection> {
     trace!("adding a new question");
     let Question {
         title, content, tags, ..
@@ -93,12 +94,15 @@ pub async fn add_question(store: Store, question: Question) -> Result<impl Reply
     debug!("censored content: {content}");
 
     match store
-        .add_question(Question {
-            id: None,
-            title,
-            content,
-            tags,
-        })
+        .add_question(
+            session.account_id,
+            Question {
+                id: None,
+                title,
+                content,
+                tags,
+            },
+        )
         .await
     {
         Ok(question) => {
@@ -122,9 +126,15 @@ pub async fn update_question(
     store: Store,
     question_id: QuestionId,
     question: Question,
+    session: Session,
 ) -> Result<impl Reply, Rejection> {
-    let QuestionId(id) = question_id;
-    trace!("updating the question with question_id = {id}");
+    let Session { account_id, .. } = session;
+    trace!("checking if the account is the owner of the question");
+    if !store.is_question_owner(question_id, account_id).await? {
+        return Err(ServiceError::Unauthorized.into());
+    }
+
+    trace!("updating the question with question_id = {}", question_id.0);
     let Question {
         title, content, tags, ..
     } = question;
@@ -136,15 +146,18 @@ pub async fn update_question(
     debug!("censored content: {content}");
 
     let censored_question = Question {
-        id: Some(id.into()),
+        id: Some(question_id),
         title,
         content,
         tags,
     };
 
-    match store.update_question(censored_question, id).await {
+    match store
+        .update_question(session.account_id, censored_question, question_id)
+        .await
+    {
         Ok(question) => {
-            info!("updated question with question_id = {id}");
+            info!("updated question with question_id = {}", question_id.0);
             debug!(updated_question = ?question);
             Ok(with_status("Question updated", StatusCode::OK))
         }
@@ -160,14 +173,17 @@ pub async fn update_question(
 /// - `store` - [Store] instance
 /// - `question_id` - [QuestionId] for the question to delete
 #[instrument(target = "webdev_book::questions", skip(store))]
-pub async fn delete_question(store: Store, question_id: QuestionId) -> Result<impl Reply, Rejection> {
-    let QuestionId(id) = question_id;
+pub async fn delete_question(store: Store, question_id: QuestionId, session: Session) -> Result<impl Reply, Rejection> {
+    let Session { account_id, .. } = session;
+    trace!("checking if the account is the owner of the question");
+    if !store.is_question_owner(question_id, account_id).await? {
+        return Err(ServiceError::Unauthorized.into());
+    }
 
-    trace!("deleting the question with question_id = {id:?}");
-
-    match store.delete_question(id).await {
+    trace!("deleting the question with question_id = {}", question_id.0);
+    match store.delete_question(session.account_id, question_id).await {
         Ok(true) => {
-            info!("deleted question with question_id = {id:?}");
+            info!("deleted question with question_id = {}", question_id.0);
             Ok(with_status("Question deleted", StatusCode::OK))
         }
         Ok(false) => Err(ServiceError::QuestionNotFound(question_id.into()).into()),

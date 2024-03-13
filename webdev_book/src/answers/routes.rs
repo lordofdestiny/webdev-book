@@ -1,6 +1,7 @@
 use warp::{filters::BoxedFilter, Filter, Reply};
 
 use crate::answers::handlers;
+use crate::authentication;
 use crate::filters::{store_filter, with_trace};
 use crate::store::Store;
 use crate::types::question::QuestionId;
@@ -17,6 +18,7 @@ pub fn add_answer(store: Store) -> BoxedFilter<(impl Reply,)> {
         .and(warp::post())
         .and(warp::path!("questions" / QuestionId / "answers"))
         .and(warp::body::json())
+        .and(authentication::auth())
         .and_then(handlers::add_answer)
         .with(with_trace!("add_answer request"))
         .boxed()
