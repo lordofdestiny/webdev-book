@@ -38,7 +38,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     // This is the store that holds the questions and answers.
-    let store = store::Store::new("postgres://admin:admin@localhost:5432/webdev_book").await;
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let store = store::Store::new(&db_url).await;
 
     sqlx::migrate!()
         .run(&store.connection)

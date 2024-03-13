@@ -1,5 +1,5 @@
 [package]
-name = "server"
+name = "webdev_book"
 version = "0.1.0"
 edition = "2021"
 build = "build.rs"
@@ -15,7 +15,12 @@ uuid = { version = "1.7.0", features = ["v4"] }
 tracing = { version = "0.1.40", features = ["log"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing-appender = "0.2.3"
-sqlx = { version = "0.7.3", features = ["runtime-tokio-rustls", "migrate", "postgres", "time"] }
+sqlx = { version = "0.7.3", features = [
+    "runtime-tokio-rustls",
+    "migrate",
+    "postgres",
+    "time",
+] }
 reqwest = { version = "0.11.26", features = ["json"] }
 reqwest-middleware = "0.2.4"
 reqwest-retry = "0.4.0"
@@ -24,3 +29,4 @@ macros = { path = "../macros" }
 rand = "0.8.5"
 rust-argon2 = "2.1.0"
 paseto = { version = "2.0.2+1.0.3" }
+chrono = "0.4.35"

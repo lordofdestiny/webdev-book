@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use tracing::{error, instrument, trace};
+use tracing::{error, info, instrument, trace};
 
 use crate::api::bad_words::BadWordsAPI;
 use crate::error::ServiceError;
@@ -49,13 +49,16 @@ impl Store {
 
         trace!("creating connection pool to ${db_url}");
         let db_pool = match PgPoolOptions::new().max_connections(5).connect(db_url).await {
-            Ok(pool) => pool,
+            Ok(pool) => {
+                info!("DB connection established successfully");
+                pool
+            }
             Err(e) => panic!("Couldn't establish DB connection: {}", e),
         };
 
         trace!("building BadWordsAPI object");
-        const API_LAYER_KEY: &str = env!("API_LAYER_KEY", "API_LAYER_KEY not found");
-        let bad_words_api = BadWordsAPI::build(API_LAYER_KEY, '*').expect("Couldn't build BadWordsAPI");
+        let api_layer_key = std::env::var("API_LAYER_KEY").expect("API_LAYER_KEY not found");
+        let bad_words_api = BadWordsAPI::build(&api_layer_key, '*').expect("Couldn't build BadWordsAPI");
 
         trace!("store object created successfully");
         Store {
