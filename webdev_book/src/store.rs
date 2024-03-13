@@ -7,7 +7,7 @@ use tracing::{error, info, instrument, trace};
 
 use crate::api::bad_words::BadWordsAPI;
 use crate::error::ServiceError;
-use crate::types::account::Account;
+use crate::types::authentication::Account;
 use crate::types::{answer::Answer, pagination::Pagination, question::Question};
 
 /// This struct represents the store, which is a simple in-memory database.

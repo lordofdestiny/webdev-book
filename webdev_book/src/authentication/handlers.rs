@@ -1,5 +1,5 @@
 use argon2::Config;
-use paseto::v2::local_paseto;
+use chrono::Utc;
 use rand::random;
 use tracing::{debug, info, instrument, trace};
 use warp::http::StatusCode;
@@ -8,7 +8,7 @@ use warp::{Rejection, Reply};
 
 use crate::error::ServiceError;
 use crate::store::Store;
-use crate::types::account::{Account, AccountId};
+use crate::types::authentication::{Account, AccountId};
 
 /// Hashes a password using Argon2.
 ///
@@ -75,12 +75,19 @@ fn verify_password(hashed: &str, password: &str) -> Result<bool, argon2::Error> 
 /// A PASETO token as a string.
 ///
 /// # Panics
-/// - If the state cannot be serialized.
-/// - If the token cannot be issued.
+/// - If the final date cannot be constructed.
+/// - If the token cannot be constructed.
 fn issue_token(account_id: AccountId) -> String {
-    let state = serde_json::to_string(&account_id).expect("failed to serialize state");
+    let current_datetime = Utc::now();
+    let dt = current_datetime + chrono::Duration::try_days(1).unwrap();
 
-    local_paseto(&state, None, "RANDOM WORDS WINTER MACINTOSH PC".as_bytes()).expect("failed to issue token")
+    paseto::tokens::PasetoBuilder::new()
+        .set_encryption_key(&Vec::from("RANDOM WORDS WINTER MACINTOSH PC".as_bytes()))
+        .set_expiration(&dt)
+        .set_not_before(&Utc::now())
+        .set_claim("account_id", serde_json::json!(account_id))
+        .build()
+        .expect("Failed to construct paseto token w/ builder")
 }
 
 /// Handler for the `POST /login` route.
