@@ -1,7 +1,8 @@
 //! Module that implements the error handling for the API.
-
-use reqwest::Error as ReqwestError;
-use reqwest_middleware::Error as ReqwestMiddlewareError;
+pub use argon2::Error as ArgonError;
+pub use reqwest::Error as ReqwestError;
+pub use reqwest_middleware::Error as ReqwestMiddlewareError;
+pub use sqlx::Error as SqlxError;
 use tracing::{error, instrument, warn};
 use warp::{
     filters::{body::BodyDeserializeError, cors::CorsForbidden},
@@ -59,10 +60,10 @@ pub enum ServiceError {
     QuestionNotFound(#[from] MissingQuestion),
     /// Error for invalid database queries
     #[error("cannot update, invalid data")]
-    DatabaseQueryError(#[from] sqlx::Error),
+    DatabaseQueryError(#[from] SqlxError),
     /// Error returned by the Argon2 hashing library
     #[error("argon2 error")]
-    ArgonLibraryError(#[from] argon2::Error),
+    ArgonLibraryError(#[from] ArgonError),
     /// Error for Reqwest errors
     #[error("external API error:")]
     ReqwestAPIError(#[from] ReqwestError),
@@ -107,10 +108,12 @@ impl ServiceError {
 
 impl Reject for ServiceError {}
 
+/// Error codes for PostgreSQL
 pub mod pg_error_codes {
     pub const UNIQUE_VIOLATION: &str = "23505";
     pub const CHECK_VIOLATION: &str = "23514";
 
+    /// Returns the default error message for the error code
     pub fn default_error_message(code: &str) -> &'static str {
         match code {
             UNIQUE_VIOLATION => "duplicate data",
@@ -129,6 +132,9 @@ pub mod pg_error_codes {
 ///
 /// # Parameters
 /// - `rejection`: The rejection returned by the handler
+///
+/// # Panics
+/// - If error is a [DatabaseQueryError](ServiceError::DatabaseQueryError) and the error code is not recognized
 #[instrument(target = "webdev_book::errors", skip_all)]
 pub async fn return_error(rejection: Rejection) -> Result<impl Reply, Rejection> {
     use warp::reply::with_status;
