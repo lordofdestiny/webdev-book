@@ -6,3 +6,5 @@
 /.idea/inspectionProfiles
 /.idea/dataSources.xml
 /.idea/sqldialects.xml
+
+**/.env
