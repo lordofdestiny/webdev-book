@@ -46,27 +46,27 @@ impl Store {
     /// # Panics
     /// - If the database connection cannot be established
     #[instrument(target = "store", level = "debug", skip(db_url))]
-    pub async fn new(db_url: &str) -> Self {
+    pub async fn build(db_url: &str) -> Result<Self, ServiceError> {
         trace!("creating store object");
 
         trace!("creating connection pool to ${db_url}");
         let db_pool = match PgPoolOptions::new().max_connections(5).connect(db_url).await {
             Ok(pool) => {
                 info!("DB connection established successfully");
-                pool
+                Ok(pool)
             }
-            Err(e) => panic!("Couldn't establish DB connection: {}", e),
-        };
+            Err(_) => Err(ServiceError::DatabaseConnectionError),
+        }?;
 
         trace!("building BadWordsAPI object");
-        let api_layer_key = std::env::var("API_LAYER_KEY").expect("API_LAYER_KEY not found");
-        let bad_words_api = BadWordsAPI::build(&api_layer_key, '*').expect("Couldn't build BadWordsAPI");
+        let api_layer_key = std::env::var("API_LAYER_KEY").unwrap();
+        let bad_words_api = BadWordsAPI::build(&api_layer_key, '*')?;
 
         trace!("store object created successfully");
-        Store {
+        Ok(Store {
             connection: db_pool,
             bad_words_api: Arc::new(bad_words_api),
-        }
+        })
     }
 
     /// This function returns all questions from the table `questions`.
@@ -341,7 +341,7 @@ impl Store {
             Err(error) => {
                 let db_error = error.as_database_error().unwrap();
                 error!(
-                    code = db_error.code().unwrap().parse::<i32>().unwrap(),
+                    code = db_error.code().unwrap().as_ref(),
                     db_message = db_error.message(),
                     constraint = db_error.constraint().unwrap(),
                 );

@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use crate::error;
-
 /// Pagination struct that is getting extracted
 /// from the query params
 #[derive(Debug, Clone, Copy)]
@@ -21,20 +19,24 @@ impl Pagination {
     /// # Example query
     /// GET requests to this route can have a pagination attached, so we just
     /// return the questions we need `/questions?start=0&limit=10`
-    pub fn extract(params: &HashMap<String, String>) -> Result<Self, error::ServiceError> {
+    pub fn extract(params: &HashMap<String, String>) -> Result<Self, PaginationParsingError> {
         // Extract the start and limit from the query params
         // If they are not provided we just return the default values,
         // which are: start = 0 and limit = usize::MAX
-        let offset = params
-            .get("offset")
-            .map_or(Ok(0), |s| s.parse())
-            .map_err(error::ServiceError::PaginationError)?;
+        let offset = params.get("offset").map_or(Ok(0), |s| s.parse())?;
         let limit = params
             .get("limit")
             .map(|s| s.parse())
-            .map_or(Ok(None), |s| s.map(Some))
-            .map_err(error::ServiceError::PaginationError)?;
+            .map_or(Ok(None), |s| s.map(Some))?;
 
         Ok(Pagination { offset, limit })
     }
 }
+
+/// Error while parsing pagination parameters
+///
+/// This error is used when the pagination parameters cannot be parsed as integers.
+/// It is used in the `Pagination` struct.
+#[derive(thiserror::Error, Debug)]
+#[error("failed to parse pagination parameters")]
+pub struct PaginationParsingError(#[from] std::num::ParseIntError);

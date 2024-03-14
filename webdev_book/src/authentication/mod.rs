@@ -37,15 +37,10 @@ pub fn filter(store: &Store) -> BoxedFilter<(impl Reply,)> {
 /// If the password is correct, otherwise,
 /// it returns a [`ServiceError::CannotDecrpytToken`](ServiceError::CannotDecryptToken).
 pub fn verify_token(token: String) -> Result<Session, ServiceError> {
-    println!("token: {}", token);
-    let token = paseto::tokens::validate_local_token(
-        &token,
-        None,
-        &"RANDOM WORDS WINTER MACINTOSH PC".as_bytes(),
-        &paseto::tokens::TimeBackend::Chrono,
-    )
-    .map_err(|_| ServiceError::CannotDecryptToken)?;
-    println!("token: {}", token);
+    let key = std::env::var("PASETO_KEY").unwrap();
+    use paseto::tokens::{validate_local_token, TimeBackend};
+    let token = validate_local_token(&token, None, key.as_bytes(), &TimeBackend::Chrono)
+        .map_err(|_| ServiceError::CannotDecryptToken)?;
 
     serde_json::from_value::<Session>(token).map_err(|_| ServiceError::CannotDecryptToken)
 }

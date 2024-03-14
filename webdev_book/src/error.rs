@@ -11,8 +11,8 @@ use warp::{
     Rejection, Reply,
 };
 
-use crate::api;
-use crate::types::question::QuestionId;
+use crate::{api, types::pagination::PaginationParsingError};
+use crate::{api::bad_words::BadWordsAPIBuildError, types::question::QuestionId};
 
 /// Error type for missing questions
 ///
@@ -52,9 +52,24 @@ impl APILayerError {
 /// Error type for all errors returned by the service
 #[derive(thiserror::Error, Debug)]
 pub enum ServiceError {
+    /// Error for parsing any value from a string
+    #[error("cannot parse value: {0}")]
+    ParseError(#[from] std::num::ParseIntError),
+    /// Error for when migrations fail on startup
+    #[error("cannot run migrations: {0}")]
+    MigrationError(#[from] sqlx::migrate::MigrateError),
+    /// Error for when BadWordsAPI handle cannot be created
+    #[error("cannot create BadWordsAPI handle : {0}")]
+    BadWordsAPIBuildError(#[from] BadWordsAPIBuildError),
+    /// Error for failing to connect to the database
+    #[error("cannot connect to the database, invalid connection string (or credentials)")]
+    DatabaseConnectionError,
+    /// Error while parsing the configuration file
+    #[error("cannot parse configuration file: {0}")]
+    ConfigParsingError(#[from] config::ConfigError),
     /// Error for invalid pagination parameters
-    #[error("invalid pagination parameters")]
-    PaginationError(#[from] std::num::ParseIntError),
+    #[error("pagination error: {0}")]
+    PaginationError(#[from] PaginationParsingError),
     /// Error for missing questions, used when a question is not found in the database
     #[error("question {0} not found")]
     QuestionNotFound(#[from] MissingQuestion),
@@ -97,6 +112,7 @@ impl ServiceError {
     pub fn status_code(&self) -> StatusCode {
         use ServiceError::*;
         match self {
+            ParseError(_) => StatusCode::BAD_REQUEST,
             PaginationError(_) => StatusCode::BAD_REQUEST,
             QuestionNotFound(_) => StatusCode::NOT_FOUND,
             DatabaseQueryError(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -108,6 +124,10 @@ impl ServiceError {
             WrongPassword => StatusCode::UNAUTHORIZED,
             CannotDecryptToken => StatusCode::UNAUTHORIZED,
             Unauthorized => StatusCode::UNAUTHORIZED,
+            MigrationError(_) => unreachable!("migration errors are not returned by the API"),
+            ConfigParsingError(_) => unreachable!("config parsing errors are not returned by the API"),
+            BadWordsAPIBuildError(_) => unreachable!("bad words API errors are not returned by the API"),
+            DatabaseConnectionError => unreachable!("database connection errors are not returned by the API"),
         }
     }
 }

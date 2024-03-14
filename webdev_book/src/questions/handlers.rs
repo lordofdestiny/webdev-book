@@ -35,7 +35,7 @@ pub async fn get_questions(store: Store, params: HashMap<String, String>) -> Res
     trace!("querying questions");
 
     // Extract the pagination parameters from the query
-    let pag = Pagination::extract(&params)?;
+    let pag = Pagination::extract(&params).map_err(ServiceError::PaginationError)?;
 
     debug!(pagination = ?pag);
 

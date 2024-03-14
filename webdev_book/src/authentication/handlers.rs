@@ -19,10 +19,10 @@ use crate::types::authentication::{Account, AccountId};
 ///
 /// # Parameters
 /// - `password` - The password to hash.
-pub fn hash_password(password: &[u8]) -> String {
+pub fn hash_password(password: &[u8]) -> Result<String, argon2::Error> {
     let salt = random::<[u8; 32]>();
     let config = Config::default();
-    argon2::hash_encoded(password, &salt, &config).unwrap()
+    argon2::hash_encoded(password, &salt, &config)
 }
 
 /// Handler for the `POST /register` route.
@@ -36,7 +36,7 @@ pub async fn register(store: Store, account: Account) -> Result<impl Reply, Reje
     trace!("creating a new account");
     let Account { id, email, password } = account;
     trace!("hashing the password");
-    let hashed_password = hash_password(password.as_bytes());
+    let hashed_password = hash_password(password.as_bytes()).map_err(ServiceError::ArgonLibraryError)?;
 
     let account = Account {
         id,
@@ -78,11 +78,13 @@ fn verify_password(hashed: &str, password: &str) -> Result<bool, argon2::Error> 
 /// - If the final date cannot be constructed.
 /// - If the token cannot be constructed.
 fn issue_token(account_id: AccountId) -> String {
+    let key = std::env::var("PASETO_KEY").unwrap();
+
     let current_datetime = Utc::now();
     let dt = current_datetime + chrono::Duration::try_days(1).unwrap();
 
     paseto::tokens::PasetoBuilder::new()
-        .set_encryption_key(&Vec::from("RANDOM WORDS WINTER MACINTOSH PC".as_bytes()))
+        .set_encryption_key(key.as_bytes())
         .set_expiration(&dt)
         .set_not_before(&Utc::now())
         .set_claim("account_id", serde_json::json!(account_id))

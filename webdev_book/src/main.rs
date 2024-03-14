@@ -1,6 +1,6 @@
 #![warn(clippy::all)]
 
-use config::Config;
+use dotenv;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter, Registry};
 use warp::Filter;
@@ -14,11 +14,13 @@ mod questions;
 mod store;
 mod types;
 
+use config::Config;
+
 /// The configuration of the application.
 ///
 /// Values are read from the `setup.toml` file.
 #[derive(Debug, serde::Deserialize, PartialEq)]
-struct SetupFileArgs {
+pub struct Args {
     /// The log level for the application.
     log_level: String,
     /// The host of the database.
@@ -31,23 +33,20 @@ struct SetupFileArgs {
     database_user: String,
     /// The password to connect to the database.
     database_password: String,
-    /// Web server port.
-    port: u16,
 }
 
-impl SetupFileArgs {
-    /// Construct the database URL from the configuration.
-    ///
-    /// The URL is in the form `postgres://user:password@host:port/name`.
-    fn database_url(&self) -> String {
-        let SetupFileArgs {
+impl Args {
+    /// Returns the database URL.
+    pub fn database_url(&self) -> String {
+        let Self {
             database_host: host,
             database_port: port,
+            database_name: name,
             database_user: user,
             database_password: password,
-            database_name: name,
             ..
         } = self;
+
         format!("postgres://{user}:{password}@{host}:{port}/{name}")
     }
 }
@@ -57,20 +56,36 @@ impl SetupFileArgs {
 /// It sets up the logger, the store, the migrations, and the routes.
 /// Then it starts the server on port 3030.
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Set up the configuration
-    let config = Config::builder()
-        .add_source(config::File::with_name("setup"))
-        .build()
-        .expect("Cannot read configuration file");
+async fn main() -> Result<(), error::ServiceError> {
+    // Load the environment variables from the .env file.
+    dotenv::dotenv().ok();
 
-    let config: SetupFileArgs = config.try_deserialize().expect("Cannot deserialize configuration");
+    // Check if the environment variables are set.
+    if let Err(_) = std::env::var("API_LAYER_KEY") {
+        panic!("API_LAYER_KEY is not set");
+    }
+
+    if let Err(_) = std::env::var("PASETO_KEY") {
+        panic!("PASETO_KEY is not set");
+    }
+
+    let port = std::env::var("PORT")
+        .ok()
+        .map(|val| val.parse::<u16>())
+        .unwrap_or(Ok(8080))?;
+
+    // Load the configuration from the setup file.
+    let config: Args = Config::builder()
+        .add_source(config::File::with_name("setup"))
+        .build()?
+        .try_deserialize()?;
 
     // Set up the logger filter
+    let Args { ref log_level, .. } = config;
     let log_filter: EnvFilter = std::env::var("RUST_LOG")
-        .unwrap_or_else(|_| format!("webdev_book={},warp={}", config.log_level, config.log_level))
+        .unwrap_or_else(|_| format!("webdev_book={log_level},warp={log_level}"))
         .parse()
-        .expect("Cannot parse RUST_LOG");
+        .unwrap();
 
     // Set up rolling file
     let file_appender = tracing_appender::rolling::hourly("logs", "webdev-book.log");
@@ -86,12 +101,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // This is the store that holds the questions and answers.
     let db_url = config.database_url();
-    let store = store::Store::new(&db_url).await;
+    let store = store::Store::build(&db_url).await?;
 
-    sqlx::migrate!()
-        .run(&store.connection)
-        .await
-        .expect("Cannot run migrations");
+    sqlx::migrate!().run(&store.connection).await?;
 
     /* This is the filter that will be used to serve the routes.
      * It is composed of the filters defined in the filters module.
@@ -107,7 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .recover(error::return_error);
 
     // Start the server.
-    warp::serve(filter).run(([0, 0, 0, 0], config.port)).await;
+    warp::serve(filter).run(([0, 0, 0, 0], port)).await;
 
     Ok(())
 }
